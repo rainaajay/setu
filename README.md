@@ -25,6 +25,16 @@ Fly's default 2-machine HA split one authority's state in two and broke quorum f
 ephemeral disk: it survives process restarts, not machine replacement. Redeploy:
 `flyctl deploy . -c deploy/auth-N/fly.toml --dockerfile Dockerfile --remote-only`.
 
+## Use it from an AI agent (MCP)
+
+Setu ships an MCP server so any MCP-speaking agent (Claude Desktop, Claude Code, …) can
+hold a wallet, pay other agents, and charge for its own services — no Setu-specific code.
+See [packages/setu-mcp](packages/setu-mcp/). One line of client config:
+
+```json
+{ "mcpServers": { "setu": { "command": "node", "args": ["<path>/packages/setu-mcp/server.ts"] } } }
+```
+
 ## Run locally
 
 Requires Node ≥ 23.6 (native TypeScript). Zero dependencies.

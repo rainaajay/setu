@@ -1,0 +1,10 @@
+{
+  "name": "setu-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Setu — lets any AI agent hold a wallet, pay, and charge on the Setu settlement network. Zero dependencies.",
+  "type": "module",
+  "bin": { "setu-mcp": "server.ts" },
+  "scripts": { "start": "node server.ts", "smoke": "node smoke-test.ts" },
+  "license": "MIT",
+  "engines": { "node": ">=20" }
+}
