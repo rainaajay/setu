@@ -1,0 +1,20 @@
+# Secrets and runtime state — NEVER publish. Authority private keys, wallet keys,
+# committee files (public+private), per-node balances, and deploy metadata.
+deploy/secrets/
+*.key
+wallets.json
+committee.json
+committee-prod.json
+committee-chain.json
+committee-bench.json
+state/
+.vercel
+.env
+.env.*
+
+# Internal strategy note — not for the public repo (the white paper is the public doc).
+STRATEGY.md
+
+# Node
+node_modules/
+npm-debug.log*

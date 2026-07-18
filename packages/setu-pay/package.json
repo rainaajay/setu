@@ -1,0 +1,12 @@
+{
+  "name": "setu-pay",
+  "version": "0.1.0",
+  "description": "Feeless, instant, blockchain-free payments for agents and apps. One SDK: a wallet pays, a merchant charges.",
+  "type": "module",
+  "main": "index.ts",
+  "exports": { ".": "./index.ts" },
+  "files": ["index.ts", "README.md"],
+  "keywords": ["payments", "agents", "settlement", "micropayments", "x402", "feeless", "setu"],
+  "license": "MIT",
+  "engines": { "node": ">=20" }
+}

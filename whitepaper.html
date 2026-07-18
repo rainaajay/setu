@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setu — A Consensusless Settlement Engine for Agent Commerce</title>
+<meta name="description" content="A low-latency, policy-controlled settlement engine for prefunded machine-to-machine payments, anchored to existing regulated money and exposed through existing agent protocols.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M10 70 Q50 20 90 70' fill='none' stroke='%23b3702d' stroke-width='9' stroke-linecap='round'/><circle cx='10' cy='70' r='8' fill='%23b3702d'/><circle cx='90' cy='70' r='8' fill='%23b3702d'/></svg>">
+<style>
+  :root { --bg:#f7f5f0; --panel:#fffdf9; --ink:#211e19; --soft:#55504722; --muted:#6a6459; --line:#e5ded1; --accent:#b3702d; --warn:#a5502a; --maxw:760px; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#131209; --panel:#1c1a13; --ink:#ece7db; --soft:#ded7c714; --muted:#9c9584; --line:#2c2920; --accent:#d99a4e; --warn:#e0925a; } }
+  :root[data-theme="light"] { --bg:#f7f5f0; --panel:#fffdf9; --ink:#211e19; --muted:#6a6459; --line:#e5ded1; --accent:#b3702d; --warn:#a5502a; }
+  :root[data-theme="dark"] { --bg:#131209; --panel:#1c1a13; --ink:#ece7db; --muted:#9c9584; --line:#2c2920; --accent:#d99a4e; --warn:#e0925a; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--ink); font-family:Georgia,'Times New Roman',serif; line-height:1.65; -webkit-font-smoothing:antialiased; padding:clamp(20px,4vw,60px) 20px; }
+  main { max-width:var(--maxw); margin:0 auto; }
+  .eyebrow { font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin-bottom:14px; }
+  h1 { font-size:clamp(27px,4.8vw,40px); font-weight:400; line-height:1.16; }
+  h1 .dot { color:var(--accent); }
+  .sub { font-size:clamp(17px,2.4vw,20px); color:var(--muted); margin-top:12px; font-style:italic; }
+  .meta { font-size:13.5px; color:var(--muted); margin-top:18px; padding-bottom:22px; border-bottom:2px solid var(--line); }
+  .meta a { color:var(--accent); }
+  h2 { font-size:clamp(21px,3.2vw,26px); font-weight:400; margin:44px 0 4px; }
+  h2 .n { color:var(--accent); font-size:.7em; margin-right:10px; }
+  h3 { font-size:17px; font-weight:400; color:var(--ink); margin:22px 0 2px; font-style:italic; }
+  p { margin:12px 0; }
+  ul, ol { margin:12px 0 12px 22px; }
+  li { margin:7px 0; }
+  li::marker { color:var(--accent); }
+  strong { font-weight:bold; }
+  a { color:var(--accent); }
+  code { font-family:ui-monospace,Consolas,monospace; font-size:.86em; background:var(--soft); padding:1px 5px; border-radius:4px; }
+  .lead { font-size:18.5px; }
+  .box { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px 24px; margin:26px 0; }
+  .box.accent { border-left:3px solid var(--accent); }
+  .box.warn { border-left:3px solid var(--warn); }
+  .box.warn b { color:var(--warn); }
+  .box h2 { margin-top:0; }
+  .toc { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px 24px; margin:28px 0; font-size:15px; }
+  .toc ol { margin:8px 0 0 20px; }
+  .toc a { color:var(--ink); text-decoration:none; }
+  .toc a:hover { color:var(--accent); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:22px 0; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .stat b { display:block; font-size:24px; color:var(--accent); font-weight:400; }
+  .stat span { font-size:13px; color:var(--muted); }
+  table { width:100%; border-collapse:collapse; margin:18px 0; font-size:15px; display:block; overflow-x:auto; }
+  th, td { text-align:left; padding:9px 14px 9px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:normal; font-size:13px; letter-spacing:.04em; }
+  pre { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; overflow-x:auto; font-family:ui-monospace,Consolas,monospace; font-size:13px; line-height:1.5; margin:16px 0; }
+  blockquote { margin:16px 0; padding:4px 0 4px 18px; border-left:3px solid var(--line); color:var(--muted); font-style:italic; }
+  .refs { font-size:14px; } .refs li { margin:10px 0; }
+  footer { margin-top:44px; padding-top:18px; border-top:2px solid var(--line); color:var(--muted); font-size:13px; }
+  .backlink { display:inline-block; margin-bottom:24px; font-size:14px; }
+  @media print { body { background:#fff; color:#000; } .toc, .backlink { display:none; } }
+</style>
+</head>
+<body>
+<main>
+  <a class="backlink" href="/">← setu-mocha.vercel.app</a>
+
+  <div class="eyebrow">White Paper · v3.1</div>
+  <h1>Setu<span class="dot">.</span> A consensusless settlement engine for prefunded agent payments.</h1>
+  <p class="sub">Low-latency, policy-controlled settlement for machine-to-machine commerce — anchored to existing money, exposed through existing agent protocols.</p>
+  <div class="meta">v3.1 · 18 July 2026 · Working prototype live across four regions on three continents (London, Frankfurt, Washington, Singapore) · v3.1 adds the wide-area chained-spend measurement (§6) · Implementation note &amp; acknowledgements in §11.</div>
+
+  <div class="box accent">
+    <h2>Executive proposition</h2>
+    <p><strong>What Setu is.</strong> A settlement engine that moves a prefunded balance between accounts in
+    one network round trip, using a small committee of named authorities that countersign transfers — no
+    global consensus, no blocks, no mining, no native Setu token, and no mandatory per-transaction network
+    fee. Its distinguishing feature is <strong>server-enforced delegated budgets</strong>: a person authorises
+    an agent to spend under a cumulative limit that the authorities themselves track and enforce.</p>
+    <p><strong>What runs today.</strong> Four authorities live across four regions; a browser wallet; a public
+    explorer; adversarial safety tests; a chained-spend benchmark; and a working delegation-allowance
+    protocol. Details and limits in §6.</p>
+    <p><strong>The precise, bounded claim.</strong> The core settlement protocol is <em>not novel</em> — it is
+    the FastPay family of consensusless-payment research (§3). Setu's contribution is a lightweight working
+    implementation, a server-enforced delegation layer, and a commercialisation aimed at the market that did
+    not exist when that research was written: delegated machine-to-machine commerce. Setu is settlement
+    infrastructure that must anchor to an <strong>existing regulated form of money</strong> (§7) and
+    interoperate with <strong>existing agent-payment standards</strong> (§8). It is not, and does not aim to
+    be, a new currency or a universal settlement network.</p>
+  </div>
+
+  <nav class="toc"><strong>Contents</strong>
+    <ol>
+      <li><a href="#usecase">The use case: why agent payments differ</a></li>
+      <li><a href="#ordering">Why global ordering is unnecessary for simple payments</a></li>
+      <li><a href="#prior">Prior work, and Setu's contribution</a></li>
+      <li><a href="#protocol">Protocol and threat model</a></li>
+      <li><a href="#delegation">Delegated budgets, enforced by the authorities</a></li>
+      <li><a href="#evidence">Prototype and evidence</a></li>
+      <li><a href="#money">Production architecture: anchoring to real money</a></li>
+      <li><a href="#market">Market position</a></li>
+      <li><a href="#maturity">Maturity: proven vs unproven</a></li>
+      <li><a href="#roadmap">Open issues and roadmap</a></li>
+      <li><a href="#refs">References, reproducibility, acknowledgements</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="usecase"><span class="n">01</span>The use case: why agent payments differ</h2>
+  <p class="lead">A human tolerates a card fee and next-day settlement. A software agent buying ten thousand
+  data responses cannot.</p>
+  <p>Machine-to-machine commerce inverts the assumptions retail payments are built on: values are often
+  sub-cent, frequency is high and continuous, there is no human in the loop to authorise each payment, and
+  the "merchant" is frequently an API returning a result in milliseconds. Card authorisation economics,
+  chargeback windows, and per-transaction fees that are rounding errors for a £40 purchase become prohibitive
+  at a hundred payments per second of a tenth of a penny each. This is the requirement gap Setu targets — and
+  it is a genuinely new market, not a better version of an old one.</p>
+
+  <h2 id="ordering"><span class="n">02</span>Why global ordering is unnecessary for simple payments</h2>
+  <p>Many blockchain systems impose a single global order over every transaction. For simple single-owner
+  asset transfers, that is more than the problem requires: a payment from Alice conflicts only with another
+  payment Alice makes with the same funds — never with unrelated payments elsewhere. Ordering is needed only
+  among debits from the <em>same</em> account.</p>
+  <p>This is a formal result, not a slogan. Guerraoui et&nbsp;al. proved that a single-owner asset-transfer
+  object has <strong>consensus number one</strong> — it can be implemented without consensus. The costs people
+  associate with public blockchains follow specifically from imposing more structure than that: a single
+  global queue creates a fee market to enter it; a block producer's discretion over ordering creates
+  extractable value (MEV); and proof-of-work security spends energy to make an anonymous global history
+  expensive to rewrite. Remove the global-ordering requirement for payments and those specific costs go with
+  it. This is a narrow, defensible claim — it says nothing about permissioned ledgers, rollups, or DAGs that
+  make different trade-offs.</p>
+
+  <h2 id="prior"><span class="n">03</span>Prior work, and Setu's contribution</h2>
+  <p>The consensusless-payment approach is well developed, and Setu should be read as a member of that family,
+  not a departure from it:</p>
+  <ul>
+    <li><strong>FastPay</strong> (Baudet, Danezis, Sonnino; Meta/Novi, 2020) is the direct antecedent of
+    Setu's settlement plane: pre-funded accounts, a committee of authorities, quorum-signed transfer
+    certificates, Byzantine consistent broadcast, no consensus, sub-100&nbsp;ms confirmation.</li>
+    <li><strong>Astro</strong> (Collins et&nbsp;al., DSN 2020) implements payments by reliable broadcast;
+    <strong>Zef</strong> (2022) extends FastPay to private payments via anonymous credentials and
+    zero-knowledge proofs — the direction Setu's privacy roadmap points.</li>
+    <li>The theory sits under all of them: single-owner transfer has consensus number one (Guerraoui
+    et&nbsp;al., PODC 2019).</li>
+  </ul>
+  <p>Against that backdrop, Setu adds three things, and claims only these: (1) a very lightweight, dependency-free
+  working implementation that is live and reproducible; (2) a <strong>server-enforced delegation-budget
+  protocol</strong> (§5) that lets a principal cap an agent's cumulative spend — the mechanism agent commerce
+  specifically needs and that a payment ledger alone does not provide; and (3) a commercialisation thesis (§7,
+  §8) that anchors the engine to regulated money and existing agent standards. The strongest one-line framing:
+  <em>agent commerce may finally give consensusless-payment research a commercially valuable use case it
+  previously lacked.</em></p>
+
+  <h2 id="protocol"><span class="n">04</span>Protocol and threat model</h2>
+  <p>Setu instantiates the FastPay <strong>3f&nbsp;+&nbsp;1</strong> authority model, tolerating up to
+  <em>f</em> Byzantine authorities. The prototype uses <em>f</em>&nbsp;=&nbsp;1 (four authorities, quorum
+  three).</p>
+  <h3>State</h3>
+  <p>Each authority holds, per account, a <code>balance</code> and a monotonic <code>nextSeq</code>, plus at
+  most one <code>pending</code> order. Accounts are addressed by an Ed25519 public key.</p>
+  <h3>Transfer order and certificate</h3>
+  <pre>TransferOrder { sender, recipient, amount, seq, ref?, delegation? }
+SignedOrder   { order, senderSignature }              // signed by the sender
+Certificate   { order, senderSignature,
+                authoritySignatures[] }               // a quorum of authority signatures</pre>
+  <h3>Payment flow</h3>
+  <ol>
+    <li><strong>Order.</strong> The sender signs a <code>TransferOrder</code> with <code>seq =
+    nextSeq</code> and sends it to all authorities.</li>
+    <li><strong>Countersign.</strong> Each authority checks the signature, the sequence, and
+    <code>balance ≥ amount</code>; if it holds no conflicting <code>pending</code> at this sequence, it locks
+    the order as pending (first-seen) and returns its signature. Re-signing the identical order is
+    idempotent.</li>
+    <li><strong>Certificate = a quorum of signatures.</strong> The sender assembles <em>2f&nbsp;+&nbsp;1</em>
+    signatures into a certificate.</li>
+    <li><strong>Confirm.</strong> The sender delivers the certificate to the authorities, which verify the
+    quorum, debit the sender, credit the recipient, advance <code>nextSeq</code>, and clear the lock. Delivery
+    to a quorum is what makes the received funds spendable (§6).</li>
+  </ol>
+  <h3>Safety (no double-spend)</h3>
+  <p>Two conflicting orders at the same <code>(sender, seq)</code> would each need a quorum of
+  <em>2f&nbsp;+&nbsp;1</em> from <em>3f&nbsp;+&nbsp;1</em> authorities. Any two such quorums intersect in at
+  least <em>f&nbsp;+&nbsp;1</em> authorities, so their overlap contains at least one honest authority — which,
+  by first-seen locking, signs only one of the two. A second conflicting certificate therefore cannot form.
+  With <em>f</em>&nbsp;=&nbsp;1, two three-of-four quorums overlap in two authorities, at least one honest.</p>
+  <h3>Liveness, replay, recovery</h3>
+  <p>The sender retries against reachable authorities; safety needs no timing assumption. Replay is prevented
+  by per-account sequencing (a settled sequence is never re-applied). An authority that restarts or lags
+  re-applies any certificate it is shown (idempotent settlement) and so catches up without a global
+  synchronisation point. Per-account persistence includes the pending lock, without which a restarted
+  authority could sign a conflicting order.</p>
+  <h3>Fault and network assumptions</h3>
+  <p>Safety holds under asynchrony with up to <em>f</em> Byzantine authorities. What the model does <em>not</em>
+  give, and what therefore remain design work: authority replacement, key rotation, and checkpointing have no
+  globally agreed switch-over point without a coordination mechanism — FastPay flags these as hard without
+  consensus, and Setu accepts that a governance-layer consensus may be needed for those operations even though
+  ordinary payments need none (§10). And in the prototype the four authorities share one operator, codebase,
+  and cloud: that is geographic distribution with little common-mode independence, so the deployment today
+  demonstrates replication, not decentralised accountability.</p>
+
+  <h2 id="delegation"><span class="n">05</span>Delegated budgets, enforced by the authorities</h2>
+  <p>Agent commerce needs a principal to bound what an agent may spend. The subtle part — and a place a naive
+  design breaks — is that <strong>a signed budget credential proves a permission was granted; it does not
+  track how much has already been spent.</strong> If enforcement were left to the credential and offline
+  merchants, an agent could present the same allowance to ten merchants at once, each verifying it as valid,
+  and overspend. The budget must be <em>live state held by the settlement authorities</em>, not a static
+  signature.</p>
+  <p>Setu therefore makes the authorities enforce a delegation-allowance object:</p>
+  <pre>DelegationAllowance {
+  id, principal, agent,        // who granted, who may spend
+  total, spent,                // cumulative ceiling and running total (authority-held)
+  maxPerPayment,
+  validFrom, expiresAt,
+  seq,                         // per-delegation sequence
+  revoked                      // authority-held revocation flag
+}</pre>
+  <p>The principal signs the immutable grant (<code>id, principal, agent, total, maxPerPayment, expiry</code>)
+  and registers it with the authorities; the authorities own the mutable <code>spent</code>,
+  <code>seq</code>, and <code>revoked</code> fields. A delegated payment carries the delegation <code>id</code>;
+  on each such payment an authority checks agent identity, expiry, per-payment cap, and
+  <code>spent&nbsp;+&nbsp;amount&nbsp;≤&nbsp;total</code>, then debits the <em>principal</em> and advances
+  <code>spent</code>. Because delegated spends are serialised by the delegation's own sequence and gated on the
+  live total:</p>
+  <ul>
+    <li>cumulative spend across any number of merchants cannot exceed <code>total</code>;</li>
+    <li>the "present the same budget to many merchants at once" attack yields <strong>at most one</strong>
+    certificate, never two (concurrent conflicting orders at worst wedge the agent's own delegation sequence —
+    the principal's other funds are untouched);</li>
+    <li>revocation is enforced by the authorities, so a revoked credential cannot be spent even against a
+    merchant that never saw the revocation.</li>
+  </ul>
+  <p>This is implemented and demonstrated (<code>npm run demo:allowance</code>). It is the mechanism that makes
+  "your key holds the leash" a settlement-level guarantee rather than a client-side hope.</p>
+
+  <h2 id="evidence"><span class="n">06</span>Prototype and evidence</h2>
+  <div class="stats">
+    <div class="stat"><b>~4 ms</b><span>certificate finality, one machine</span></div>
+    <div class="stat"><b>~200 ms</b><span>certificate finality, four regions</span></div>
+    <div class="stat"><b>280/280</b><span>chained spends first-try, no extra delay</span></div>
+    <div class="stat"><b>3 of 4</b><span>signatures form a certificate</span></div>
+  </div>
+  <p>Four authorities run on Fly.io in London, Frankfurt, Washington and Singapore (four regions, three
+  continents). A browser wallet at <a href="/">setu-mocha.vercel.app</a> lets anyone create a keypair, draw
+  test units, and settle a payment across those regions directly from the browser; a public
+  <a href="/explorer.html">explorer</a> streams live transactions.</p>
+  <p><strong>Adversarial safety.</strong> A double-spend cannot form a certificate; a Byzantine authority that
+  signs everything cannot enable one; a killed authority process does not halt settlement; a delegated budget
+  cannot be over-spent, double-presented, or used after revocation.</p>
+  <p><strong>Chained-spend (the benchmark that matters).</strong> "Final in one round trip" is
+  certificate-receipt finality; the commercially decisive question is whether a recipient can immediately
+  spend received funds. A dedicated benchmark runs 40 concurrent eight-hop chains, each hop after the first
+  spending the money the previous hop delivered: all 280 chained spends completed first-try, at no extra
+  latency over a fresh payment, and the property held with an authority killed (money delivered to the
+  surviving quorum stayed immediately spendable). The same benchmark run against the <strong>live
+  four-region network</strong> gives 48 of 48 chained spends first-try at <strong>~183&nbsp;ms per hop
+  (p50)</strong> — statistically the same as a fresh payment (delta +24&nbsp;ms). That is spendable-balance
+  finality, measured both on a laptop and across the wide area; the authority-failure case is validated in the
+  localhost run.</p>
+  <p><strong>What the numbers do not establish.</strong> 423 transactions/second on a laptop shows the
+  software runs, not production scale; FastPay's 80,000&nbsp;TPS came from favourable lab conditions,
+  lightly-loaded WAN authorities, no full persistent-database costs, and independent accounts (repeated spends
+  from one sender cannot be parallelised). Persistence, contention, recovery, and security controls are part
+  of the production design, so throughput is a design capability the prototype has not demonstrated.</p>
+
+  <h2 id="money"><span class="n">07</span>Production architecture: anchoring to real money</h2>
+  <div class="box warn"><b>The single most important open question is what a unit represents.</b> The live
+  network settles test units. Moving a number is easy; the legal and financial claim behind it is the hard
+  part, and it is not a coding problem.</div>
+  <p>The BIS distinguishes an operational ledger transfer from <strong>legal settlement finality</strong>,
+  which is a status conferred by law and contract at a defined point — a protocol cannot assert it about
+  itself. International standards prefer settlement in central-bank money, or a settlement asset with tightly
+  controlled credit and liquidity risk. Setu is deliberately asset-agnostic: it supplies fast agreement among
+  accountable parties and a verifiable receipt, and must be anchored to a defined claim. One concrete reference
+  architecture, end to end:</p>
+  <ol>
+    <li>A <strong>regulated issuer</strong> (e-money institution, licensed stablecoin issuer, or bank) receives
+    fiat and holds it in a <strong>segregated, safeguarded omnibus account or reserve</strong>.</li>
+    <li>A Setu balance represents a <strong>defined beneficial claim</strong> against that pool. Payments move
+    those claims on the Setu ledger — fast, feeless, internal.</li>
+    <li><strong>Mint and redeem</strong> happen only through the regulated issuer: fiat/stablecoin in creates
+    Setu units; redemption burns them.</li>
+    <li>Periodic <strong>reconciliation</strong> settles the omnibus position against the banking or on-chain
+    layer; intraday Setu transfers net down to far fewer external settlements.</li>
+    <li>The <strong>legal rules</strong> state when a payer's obligation is discharged, and the
+    <strong>safeguarding and insolvency</strong> terms state holders' redemption rights if the issuer fails.</li>
+  </ol>
+  <p>This makes Setu an off-chain, low-latency transfer layer over claims on regulated money — deliberately, and
+  stated plainly so a reader can evaluate it. It also bounds the prefunding cost: every payment is prefunded,
+  which removes credit and liquidity management but forgoes credit, netting, overdrafts, delayed capture and
+  FX, and gross-settles rather than nets — attractive for micropayments, less so where working-capital
+  efficiency dominates.</p>
+
+  <h2 id="market"><span class="n">08</span>Market position</h2>
+  <p>Agent commerce is no longer an empty field. The layers are separating, and Setu occupies one of them:</p>
+  <table>
+    <tr><th>Layer</th><th>Role</th><th>Examples</th></tr>
+    <tr><td>Intent &amp; authority</td><td>What the user authorised; accountability</td><td>AP2 (now with the FIDO Alliance)</td></tr>
+    <tr><td>Payment request</td><td>HTTP request/response for a payment</td><td>x402</td></tr>
+    <tr><td>Settlement backend</td><td>Move the claim, fast, with enforced limits</td><td><strong>Setu</strong></td></tr>
+    <tr><td>Monetary claim</td><td>Legal money and redemption</td><td>Regulated stablecoin / e-money issuer</td></tr>
+    <tr><td>Integrated incumbent</td><td>Several layers in one network</td><td>Mastercard Agent Pay for Machines</td></tr>
+  </table>
+  <p><strong>The principal commercial challenge is Mastercard Agent Pay for Machines</strong> (announced June
+  2026), which targets exactly this category — high-frequency, low-value machine payments with agent
+  credentialing, programmatic spend limits, and multi-rail settlement across cards, accounts and stablecoins.
+  Lower latency is not a sufficient answer. A cloud platform, API provider, or bank would choose Setu over an
+  incumbent network only for concrete reasons: materially better economics on sub-cent transactions;
+  self-hosting or consortium control rather than dependence on a proprietary network; deterministic settlement
+  without card-authorisation semantics; no chargeback exposure on completed digital services; stronger,
+  auditable programmatic limits (§5); data minimisation; or deployment inside a controlled ecosystem the
+  operator already owns. Where none of these dominate, the incumbent's money, acceptance, and network effects
+  will — and Setu should not pretend otherwise. Payments are adopted on acceptance and interoperability, which
+  is why Setu's roadmap is to interoperate (x402/AP2) rather than to replace.</p>
+  <p>A related bound Setu does not solve: a payment receipt is not a completed transaction. It proves an agent
+  paid an invoice, not that the service was delivered, correct, or refundable. Those need escrow, dispute
+  handling, or conditional execution — several of which are multi-party atomic operations where an intermediary
+  or consensus re-enters (FastPay likewise does not support payment-versus-payment or delivery-versus-payment).
+  For pay-then-consume API calls this is adequate; for goods, travel, or regulated products it is not, and Setu
+  should be deployed only where "pay, receive, stop using a bad provider" is a sufficient dispute model, or
+  behind a marketplace that supplies the rest.</p>
+
+  <h2 id="maturity"><span class="n">09</span>Maturity: proven vs unproven</h2>
+  <table>
+    <tr><th>Dimension</th><th>Status</th></tr>
+    <tr><td>Core protocol soundness</td><td>Credible — FastPay-family design; consensus-number-one result.</td></tr>
+    <tr><td>Working implementation</td><td>Live across four regions; adversarial properties demonstrated.</td></tr>
+    <tr><td>Delegated-budget enforcement</td><td>Implemented and demonstrated server-side (§5).</td></tr>
+    <tr><td>Chained-spend correctness</td><td>Demonstrated locally and across the live four-region network (~183&nbsp;ms/hop).</td></tr>
+    <tr><td>Independent validators</td><td>Not yet — one operator/codebase/cloud (replication).</td></tr>
+    <tr><td>Real settlement asset &amp; legal finality</td><td>Not yet — test units; requires a regulated issuer (§7).</td></tr>
+    <tr><td>Production scale</td><td>Unproven — laptop benchmark only.</td></tr>
+    <tr><td>Sustainable economics</td><td>Unproven — "no per-transaction fee," not free; funding model TBD.</td></tr>
+    <tr><td>Governance &amp; maintenance</td><td>Open — rotation/upgrades may need a consensus layer (§4).</td></tr>
+  </table>
+
+  <h2 id="roadmap"><span class="n">10</span>Open issues and roadmap</h2>
+  <table>
+    <tr><th>Item</th><th>Status</th></tr>
+    <tr><td>Settlement core, live four-region network, trust plane, wallet, explorer, SDK, delegated budgets</td><td>Done.</td></tr>
+    <tr><td>Wide-area chained-spend benchmark across the four regions</td><td>Done — 48/48 chained spends first-try, ~183&nbsp;ms/hop, no extra delay over a fresh payment.</td></tr>
+    <tr><td>Anchor units to a regulated settlement asset (§7)</td><td>Design done; needs an issuer partner or explicit closed-loop.</td></tr>
+    <tr><td>x402 / AP2 interoperability</td><td>Interoperate rather than replace.</td></tr>
+    <tr><td>Independent consortium authorities</td><td>Distinct operators, codebases, clouds — real common-mode independence.</td></tr>
+    <tr><td>Governance layer for rotation / upgrades / validator removal</td><td>Adopt consensus where maintenance genuinely needs it.</td></tr>
+    <tr><td>Zero-knowledge receipts; post-quantum signatures</td><td>Privacy on amounts; crypto-agility behind the existing seam.</td></tr>
+    <tr><td>Independent cryptographic &amp; distributed-systems review; open source</td><td>Before any real-value use.</td></tr>
+  </table>
+
+  <h2 id="refs"><span class="n">11</span>References, reproducibility, acknowledgements</h2>
+  <h3>Reproducibility</h3>
+  <p>The prototype is dependency-free TypeScript on Node. The claims in §5–§6 are reproducible:</p>
+  <pre>npm run demo            # settlement safety: double-spend, Byzantine authority, outage
+npm run demo:allowance  # server-enforced delegated budgets (§5)
+npm run bench:chain     # chained-spend benchmark (§6)
+npm run bench           # throughput benchmark</pre>
+  <p>Licence: MIT. The source repository, commit hash, deployment configuration, and test vectors will be
+  published with the independent review (§10); until then they are available on request.</p>
+  <h3>References</h3>
+  <ol class="refs">
+    <li>Baudet, Danezis, Sonnino. <em>FastPay: High-Performance Byzantine Fault Tolerant Settlement.</em> ACM AFT 2020, arXiv:2003.11506.</li>
+    <li>Baudet, Danezis, Sonnino. <em>Zef: Low-Latency, Scalable, Private Payments.</em> 2022.</li>
+    <li>Collins, Guerraoui, Komatovic, Kuznetsov, et&nbsp;al. <em>Online Payments by Merely Broadcasting Messages</em> (Astro). IEEE/IFIP DSN 2020.</li>
+    <li>Guerraoui, Kuznetsov, Monti, Pavlovič, Seredinschi. <em>The Consensus Number of a Cryptocurrency.</em> PODC 2019.</li>
+    <li><em>pod: An Optimal-Latency, Censorship-Free, and Accountable Generalized Consensus Layer.</em> arXiv:2501.14931, 2025 (one-round-trip latency in a model that deliberately provides weaker properties than total-order broadcast).</li>
+    <li>Sliwinski, Wattenhofer. <em>ABC: Proof-of-Stake without Consensus.</em> arXiv:1909.10926.</li>
+    <li>Kleppmann. <em>Making CRDTs Byzantine Fault Tolerant.</em> PaPoC 2022.</li>
+    <li>CPMI–IOSCO. <em>Principles for Financial Market Infrastructures.</em> BIS, 2012 (settlement finality; settlement in central-bank money).</li>
+    <li>IOTA Foundation. <em>IOTA Rebased</em> — the 2024 move to a Move-based delegated-proof-of-stake ledger with validator rewards and small transaction fees.</li>
+    <li>Coinbase, <em>x402</em>; Google, <em>Agent Payments Protocol (AP2)</em>, transferred to the FIDO Alliance; Mastercard, <em>Agent Pay for Machines</em> (2026).</li>
+  </ol>
+  <h3>Implementation note</h3>
+  <p>Prototype and this paper built by A. Raina with Claude Code. This is a research prototype; units on the
+  live network are test units, not money.</p>
+
+  <footer>
+    Network: <a href="/">setu-mocha.vercel.app</a> · Explorer: <a href="/explorer.html">/explorer.html</a> ·
+    v3.0, July 2026.
+  </footer>
+</main>
+</body>
+</html>

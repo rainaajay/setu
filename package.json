@@ -1,0 +1,20 @@
+{
+  "name": "setu",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Post-blockchain settlement core: consensusless BFT payments (FastPay model), two-plane architecture. See SPEC.md.",
+  "scripts": {
+    "demo": "node src/demo.ts",
+    "demo:live": "node src/demo-live.ts",
+    "demo:trust": "node src/demo-trust.ts",
+    "demo:allowance": "node src/demo-allowance.ts",
+    "devnet": "node src/devnet.ts",
+    "bench": "node src/bench.ts",
+    "bench:chain": "node src/chain-bench.ts",
+    "bench:chain:wan": "node src/chain-bench-wan.ts"
+  },
+  "engines": {
+    "node": ">=23.6"
+  }
+}

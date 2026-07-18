@@ -1,0 +1,7 @@
+# Landing page deploy: ship only the public HTML pages. Deny everything, re-include the
+# pages. Strict allow-list so newly-created files (keys, wallets, committee files,
+# source) can never be served by accident.
+*
+!index.html
+!explorer.html
+!whitepaper.html

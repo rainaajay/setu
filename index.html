@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setu</title>
+<meta name="description" content="A settlement system without blockchain: payments final in one network round trip, no fees, no mining.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M10 70 Q50 20 90 70' fill='none' stroke='%23b3702d' stroke-width='9' stroke-linecap='round'/><circle cx='10' cy='70' r='8' fill='%23b3702d'/><circle cx='90' cy='70' r='8' fill='%23b3702d'/></svg>">
+<style>
+  :root {
+    --bg: #f6f4ef;
+    --card: #ffffff;
+    --ink: #1c1a17;
+    --muted: #6d675d;
+    --line: #e4dfd4;
+    --accent: #b3702d;
+    --good: #3c6e4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14130f;
+      --card: #1e1c17;
+      --ink: #ece7dc;
+      --muted: #9b9485;
+      --line: #2e2b23;
+      --accent: #d99a4e;
+      --good: #6fae8a;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: Georgia, 'Times New Roman', serif;
+    line-height: 1.6;
+    padding: clamp(20px, 4vw, 56px);
+    max-width: 860px;
+    margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: clamp(36px, 7vw, 56px); font-weight: 400; }
+  h1 .dot { color: var(--accent); }
+  .tagline { color: var(--muted); font-size: clamp(16px, 2.4vw, 19px); margin-top: 6px; }
+  section { margin-top: clamp(30px, 5vw, 44px); }
+  h2 {
+    font-size: 13px; font-weight: 400; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--muted); border-bottom: 1px solid var(--line);
+    padding-bottom: 10px; margin-bottom: 16px;
+  }
+  p + p { margin-top: 12px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+  .stat {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px;
+  }
+  .stat b { display: block; font-size: 26px; font-weight: 400; color: var(--accent); }
+  .stat span { font-size: 13.5px; color: var(--muted); }
+  ul { padding-left: 20px; }
+  li { margin-top: 8px; }
+  li::marker { color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td:first-child { white-space: nowrap; color: var(--muted); padding-right: 18px; }
+  .done { color: var(--good); }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: .9em; }
+  footer { margin-top: clamp(32px, 5vw, 48px); padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Setu<span class="dot">.</span></h1>
+  <p class="tagline">A settlement system without blockchain.</p>
+</header>
+
+<section>
+  <h2>What it is</h2>
+  <p>Setu is a working prototype of a payment and trust system that keeps what fifteen years
+  of blockchain research proved durable and drops the rest. There are no blocks, no mining,
+  no fee market and no token. A payment is final the moment a quorum of authorities has
+  countersigned it — one network round trip. <a href="/whitepaper.html">Read the white paper →</a></p>
+  <p>The design rests on one finding: payments do not need a single global ordering of all
+  transactions. Only spends from the same account can conflict. Removing global ordering
+  removes the queue, the fee auction, and the extractable value that comes with them.</p>
+  <p>Who needs that? Software agents. A human tolerates card fees and settlement delays;
+  an agent buying ten thousand API responses cannot. Setu is a settlement rail built for
+  machine-to-machine commerce, with humans holding the delegation keys.</p>
+</section>
+
+<section>
+  <h2>Built for agents</h2>
+  <ul>
+    <li><strong>Delegation.</strong> Your key signs one credential: "this agent may spend
+    10 units, at most 2 per payment, until this expiry." Any merchant verifies it offline.
+    The agent transacts; you hold the leash.</li>
+    <li><strong>Pay-per-request.</strong> A merchant agent answers with an invoice; the
+    buyer agent pays it on the network with the invoice id signed into the order; the
+    settlement certificate is the receipt, verifiable by anyone with the committee's
+    public keys. No accounts, no API keys, no card on file.</li>
+    <li><strong>Oversight by sentinels.</strong> Audit agents continuously compare all
+    four regions and flag any divergence or misbehaving authority. The back office is
+    software.</li>
+  </ul>
+  <p style="margin-top:14px">Measured on the live network: a buyer agent made 10 delegated,
+  invoice-bound micropayments averaging 186&nbsp;ms finality each, was stopped by its budget
+  policy on the 11th, a forged certificate was rejected, and the sentinel found every
+  region consistent.</p>
+</section>
+
+<section>
+  <h2>Live network</h2>
+  <p>Four authorities run on Fly.io in London, Frankfurt, Washington and Singapore. Your
+  browser is querying them right now; a payment is final when any three answer.
+  <a href="/explorer.html">Open the live explorer →</a></p>
+  <div class="stats" id="net" style="margin-top:14px">
+    <div class="stat" data-url="https://setu-auth-1.fly.dev"><b>…</b><span>London (lhr)</span></div>
+    <div class="stat" data-url="https://setu-auth-2.fly.dev"><b>…</b><span>Frankfurt (fra)</span></div>
+    <div class="stat" data-url="https://setu-auth-3.fly.dev"><b>…</b><span>Washington (iad)</span></div>
+    <div class="stat" data-url="https://setu-auth-4.fly.dev"><b>…</b><span>Singapore (sin)</span></div>
+  </div>
+  <script>
+    document.querySelectorAll('#net .stat').forEach(async (el) => {
+      const b = el.querySelector('b');
+      try {
+        const t0 = performance.now();
+        const res = await fetch(el.dataset.url + '/health', { signal: AbortSignal.timeout(5000) });
+        await res.json();
+        b.textContent = Math.round(performance.now() - t0) + ' ms';
+      } catch {
+        b.textContent = 'down';
+      }
+    });
+  </script>
+</section>
+
+<section>
+  <h2>Try it — a real wallet, in this page</h2>
+  <p>Keys are generated in your browser and stay in your browser (localStorage). The
+  faucet mints test units; a payment is final when three of the four authorities above
+  have countersigned it. Nothing here is money.</p>
+  <div id="wallet" style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:14px">
+    <div id="w-setup"><button id="w-create" class="wbtn">Create wallet</button></div>
+    <div id="w-main" style="display:none">
+      <p style="font-size:14px">address <code id="w-addr" style="word-break:break-all"></code>
+        <button id="w-copy" class="wbtn" style="font-size:12px;padding:2px 8px">copy</button></p>
+      <p style="margin-top:10px;font-size:22px">balance <b id="w-bal" style="color:var(--accent)">…</b>
+        <button id="w-faucet" class="wbtn">faucet +500</button></p>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <input id="w-to" placeholder="recipient address (paste)" style="flex:2 1 220px;min-width:0" class="winp">
+        <input id="w-amt" placeholder="amount" type="number" min="1" style="flex:0 1 90px" class="winp">
+        <button id="w-pay" class="wbtn">pay</button>
+      </div>
+      <p id="w-log" style="margin-top:10px;font-size:13.5px;color:var(--muted)"></p>
+    </div>
+    <p id="w-unsupported" style="display:none;color:var(--muted)">This browser does not support Ed25519 in WebCrypto — try a current Chrome, Safari or Firefox.</p>
+  </div>
+  <style>
+    .wbtn { font-family:inherit; font-size:14px; color:var(--ink); background:none;
+      border:1px solid var(--line); border-radius:8px; padding:7px 14px; cursor:pointer }
+    .wbtn:hover { border-color: var(--accent) }
+    .winp { font-family:ui-monospace,Consolas,monospace; font-size:13px; color:var(--ink);
+      background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px }
+  </style>
+  <script>
+  (() => {
+    const AUTH = ['https://setu-auth-1.fly.dev','https://setu-auth-2.fly.dev','https://setu-auth-3.fly.dev','https://setu-auth-4.fly.dev'];
+    const QUORUM = 3;
+    const $ = (id) => document.getElementById(id);
+    const canonical = (v) => JSON.stringify(v, (_k, val) =>
+      val && typeof val === 'object' && !Array.isArray(val)
+        ? Object.fromEntries(Object.entries(val).sort(([a],[b]) => a < b ? -1 : 1)) : val);
+    const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+    const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+    let keys = null, address = null;
+
+    const log = (msg) => { $('w-log').textContent = msg; };
+
+    async function importStored() {
+      const stored = localStorage.getItem('setuWallet');
+      if (!stored) return false;
+      const { publicKey, privateKey } = JSON.parse(stored);
+      keys = {
+        privateKey: await crypto.subtle.importKey('pkcs8', unb64(privateKey), 'Ed25519', false, ['sign']),
+      };
+      address = publicKey;
+      return true;
+    }
+
+    async function createWallet() {
+      const kp = await crypto.subtle.generateKey('Ed25519', true, ['sign','verify']);
+      const publicKey = b64(await crypto.subtle.exportKey('spki', kp.publicKey));
+      const privateKey = b64(await crypto.subtle.exportKey('pkcs8', kp.privateKey));
+      localStorage.setItem('setuWallet', JSON.stringify({ publicKey, privateKey }));
+      keys = { privateKey: kp.privateKey };
+      address = publicKey;
+    }
+
+    async function accountViews() {
+      return Promise.all(AUTH.map(async (url) => {
+        try {
+          const r = await fetch(url + '/account?address=' + encodeURIComponent(address), { signal: AbortSignal.timeout(8000) });
+          return await r.json();
+        } catch { return null; }
+      }));
+    }
+
+    async function refreshBalance() {
+      const views = (await accountViews()).filter(Boolean);
+      if (!views.length) { $('w-bal').textContent = 'network unreachable'; return; }
+      const counts = {};
+      for (const v of views) counts[v.balance] = (counts[v.balance] ?? 0) + 1;
+      const majority = Object.entries(counts).sort((a,b) => b[1]-a[1])[0];
+      $('w-bal').textContent = majority[0] + (Number(majority[1]) < views.length ? ' (authorities syncing)' : '');
+    }
+
+    async function faucet() {
+      log('requesting from faucet…');
+      await Promise.all(AUTH.map((url) => fetch(url + '/admin/fund', {
+        method: 'POST', body: JSON.stringify({ address, amount: 500 }) }).catch(() => null)));
+      await refreshBalance();
+      log('faucet done — 500 test units minted on each authority.');
+    }
+
+    async function pay() {
+      const recipient = $('w-to').value.trim();
+      const amount = Number($('w-amt').value);
+      if (!recipient || !Number.isInteger(amount) || amount <= 0) { log('enter a recipient address and a whole-number amount.'); return; }
+      log('signing and broadcasting…');
+      try {
+        const views = (await accountViews()).filter(Boolean);
+        const seq = Math.max(...views.map((v) => v.nextSeq));
+        const order = { sender: address, recipient, amount, seq };
+        const senderSignature = b64(await crypto.subtle.sign('Ed25519', keys.privateKey, new TextEncoder().encode(canonical(order))));
+        const t0 = performance.now();
+        const responses = await Promise.all(AUTH.map(async (url) => {
+          try {
+            const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ type: 'order', signedOrder: { order, senderSignature } }), signal: AbortSignal.timeout(8000) });
+            return await r.json();
+          } catch { return { ok: false, error: 'unreachable' }; }
+        }));
+        const sigs = responses.filter((r) => r.ok).map((r) => r.signature);
+        if (sigs.length < QUORUM) { log('no quorum: ' + responses.map((r) => r.error ?? 'ok').join('; ')); return; }
+        const certificate = { order, senderSignature, authoritySignatures: sigs.slice(0, QUORUM) };
+        const ms = performance.now() - t0;
+        const settles = await Promise.all(AUTH.map((url) => fetch(url, { method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ type: 'certificate', certificate }) }).then((r) => r.json()).catch(() => ({ ok: false }))));
+        await refreshBalance();
+        log('FINAL in ' + ms.toFixed(0) + ' ms (quorum certificate formed), settled on ' + settles.filter((s) => s.ok).length + '/4 authorities.');
+      } catch (e) { log('failed: ' + e.message); }
+    }
+
+    (async () => {
+      try {
+        if (!(await importStored())) { $('w-setup').style.display = 'block'; }
+        else { $('w-setup').style.display = 'none'; $('w-main').style.display = 'block'; $('w-addr').textContent = address; refreshBalance(); }
+      } catch { $('w-setup').style.display = 'none'; $('w-unsupported').style.display = 'block'; return; }
+      $('w-create').onclick = async () => {
+        try { await createWallet(); } catch { $('w-unsupported').style.display = 'block'; return; }
+        $('w-setup').style.display = 'none'; $('w-main').style.display = 'block';
+        $('w-addr').textContent = address; refreshBalance();
+      };
+      $('w-copy').onclick = () => navigator.clipboard.writeText(address);
+      $('w-faucet').onclick = faucet;
+      $('w-pay').onclick = pay;
+    })();
+  })();
+  </script>
+</section>
+
+<section>
+  <h2>Measured on the current build</h2>
+  <div class="stats">
+    <div class="stat"><b>4 ms</b><span>payment finality on one machine; ~150 ms across four continents</span></div>
+    <div class="stat"><b>423 /s</b><span>transfers per second, 1,000 of 1,000 settled, on a single laptop</span></div>
+    <div class="stat"><b>3 of 4</b><span>signatures make a payment final; one authority can fail or lie without effect</span></div>
+    <div class="stat"><b>0</b><span>fees, and 0 runtime dependencies. Spam is priced by rate limits, not gas</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>How it is built</h2>
+  <ul>
+    <li><strong>Plane 1 — settlement.</strong> A small committee countersigns transfer orders.
+    Two conflicting spends can never both collect a quorum, so double-spending is impossible
+    rather than merely expensive. Demonstrated against a Byzantine authority that signs
+    everything.</li>
+    <li><strong>Plane 2 — trust.</strong> Identities and attestations live in a peer-to-peer
+    hash-linked log with no committee and no server. Peers can work offline and converge on
+    reconnect. Forged and tampered records are rejected by every honest peer; a peer that
+    tells two parties two different stories cannot split the network.</li>
+    <li><strong>One key space.</strong> A payment address is also an identity that can be
+    attested — "pay this counterparty" and "who vouches for this counterparty" are views of
+    the same key.</li>
+  </ul>
+  <p style="margin-top:14px">Deliberately given up: general smart contracts (proven incompatible
+  with consensus-free settlement) and a speculative native token.</p>
+</section>
+
+<section>
+  <h2>Research base</h2>
+  <ul>
+    <li><a href="https://arxiv.org/abs/2003.11506">FastPay</a> — Byzantine settlement without consensus; 80,000&nbsp;TPS, sub-100&nbsp;ms finality.</li>
+    <li><a href="https://arxiv.org/abs/2501.14931">pod</a> — one round trip is the physically optimal confirmation latency.</li>
+    <li><a href="https://arxiv.org/abs/1909.10926">ABC</a> — permissionless ledgers need neither proof-of-work nor consensus; the cost is general smart contracts.</li>
+    <li><a href="https://martin.kleppmann.com/papers/bft-crdt-papoc22.pdf">Kleppmann, PaPoC 2022</a> — replicated data structures that tolerate unlimited Byzantine peers.</li>
+    <li><a href="https://www.mdpi.com/1424-8220/25/11/3408">IOTA post-mortem</a> — why the feeless DAG failed: economics, not technology. Setu prices spam with rate limits, not fees.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Status</h2>
+  <table>
+    <tr><td>v0 <span class="done">done</span></td><td>Settlement core with adversarial test suite: double-spend, Byzantine authority, authority outage, spam.</td></tr>
+    <tr><td>v0.2 <span class="done">done</span></td><td>Authorities as separate OS processes over real sockets. 4&nbsp;ms average finality.</td></tr>
+    <tr><td>v0.3 <span class="done">done</span></td><td>Trust plane: peer-to-peer identity and attestations, offline-first, Byzantine-tolerant.</td></tr>
+    <tr><td>v0.35 <span class="done">done</span></td><td>Functional: persistent authority state, long-running devnet, wallet CLI, 423 transfers/second benchmarked.</td></tr>
+    <tr><td>Deploy <span class="done">done</span></td><td>Four authorities live on Fly.io across London, Frankfurt, Washington, Singapore.</td></tr>
+    <tr><td>v0.4</td><td>Zero-knowledge receipts — prove "balance at least X" without revealing the balance.</td></tr>
+    <tr><td>v0.5</td><td>Post-quantum signatures behind the existing crypto seam; authority rotation.</td></tr>
+    <tr><td>Bench</td><td>Honest benchmark against FastPay's published 80,000&nbsp;TPS.</td></tr>
+  </table>
+</section>
+
+<footer>Built July 2026 with Claude Code. Authorities on Fly.io; code not yet public.</footer>
+</body>
+</html>

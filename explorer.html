@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setu Explorer</title>
+<meta name="description" content="Live view of the Setu settlement network: four authorities, real payments, no blockchain.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M10 70 Q50 20 90 70' fill='none' stroke='%23b3702d' stroke-width='9' stroke-linecap='round'/><circle cx='10' cy='70' r='8' fill='%23b3702d'/><circle cx='90' cy='70' r='8' fill='%23b3702d'/></svg>">
+<style>
+  :root {
+    --bg: #14130f; --panel: #1e1c17; --ink: #ece7dc; --muted: #9b9485;
+    --line: #2e2b23; --accent: #d99a4e; --good: #6fae8a; --live: #6fae8a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: Georgia, 'Times New Roman', serif; line-height: 1.5;
+    padding: clamp(16px, 3vw, 40px); max-width: 1080px; margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); }
+  header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  h1 { font-size: clamp(26px, 5vw, 40px); font-weight: 400; }
+  h1 .dot { color: var(--accent); }
+  .back { font-size: 14px; }
+  .live-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--live); margin-right: 6px; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+  .counters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .counter { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .counter b { display: block; font-size: 30px; font-weight: 400; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .counter span { font-size: 13px; color: var(--muted); }
+  h2 { font-size: 12px; font-weight: 400; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 8px; margin: 0 0 14px; }
+  .nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 26px; }
+  .node { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .node .city { font-size: 17px; }
+  .node .region { font-size: 12px; color: var(--muted); font-family: ui-monospace, Consolas, monospace; }
+  .node .row { display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px; }
+  .node .row span:first-child { color: var(--muted); }
+  .node .up { color: var(--good); }
+  .node .down { color: #c46; }
+  .feed { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .tx { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 11px 16px; border-bottom: 1px solid var(--line); font-size: 14px; animation: fadein .5s ease; }
+  .tx:last-child { border-bottom: 0; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .tx .parties { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  .tx .arrow { color: var(--accent); }
+  .tx .amt { color: var(--accent); text-align: right; font-variant-numeric: tabular-nums; }
+  .tx .meta { color: var(--muted); font-size: 12px; }
+  .tx .ref { color: var(--muted); font-size: 12px; text-align: right; font-family: ui-monospace, Consolas, monospace; }
+  .empty { padding: 26px 16px; color: var(--muted); font-size: 14px; text-align: center; }
+  footer { margin-top: 24px; color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Setu Explorer<span class="dot">.</span></h1>
+  <a class="back" href="/">← back to Setu</a>
+</header>
+
+<p style="color:var(--muted); font-size:14px; margin-bottom:20px">
+  <span class="live-dot"></span>A live window on the network. Your browser is polling all four
+  authorities directly — there is no server in between. Every payment shown was settled by a
+  three-of-four signature quorum, with no blockchain and no fee.
+</p>
+
+<div class="counters">
+  <div class="counter"><b id="c-settled">—</b><span>payments settled</span></div>
+  <div class="counter"><b id="c-volume">—</b><span>units moved</span></div>
+  <div class="counter"><b id="c-accounts">—</b><span>accounts</span></div>
+  <div class="counter"><b id="c-up">—</b><span>authorities online</span></div>
+</div>
+
+<h2>The committee</h2>
+<div class="nodes" id="nodes"></div>
+
+<h2>Live payments</h2>
+<div class="feed" id="feed"><div class="empty">waiting for the next payment…</div></div>
+
+<footer>
+  Addresses are shown as short key prefixes; full keys, amounts of specific parties, and
+  identities are never published here. Refreshes every 4 seconds.
+</footer>
+
+<script>
+const NODES = [
+  { name: 'auth-1', city: 'London', region: 'lhr', url: 'https://setu-auth-1.fly.dev' },
+  { name: 'auth-2', city: 'Frankfurt', region: 'fra', url: 'https://setu-auth-2.fly.dev' },
+  { name: 'auth-3', city: 'Washington', region: 'iad', url: 'https://setu-auth-3.fly.dev' },
+  { name: 'auth-4', city: 'Singapore', region: 'sin', url: 'https://setu-auth-4.fly.dev' },
+];
+const $ = (id) => document.getElementById(id);
+const seen = new Set();
+
+const nodesEl = $('nodes');
+NODES.forEach((n) => {
+  const el = document.createElement('div');
+  el.className = 'node';
+  el.id = 'node-' + n.name;
+  el.innerHTML = `<div class="city">${n.city}</div><div class="region">${n.name} · ${n.region}</div>
+    <div class="row"><span>status</span><span class="st">…</span></div>
+    <div class="row"><span>latency</span><span class="lat">…</span></div>
+    <div class="row"><span>settled</span><span class="set">…</span></div>`;
+  nodesEl.appendChild(el);
+});
+
+async function poll() {
+  let up = 0, maxSettled = 0, maxVolume = 0, maxAccounts = 0;
+  const allRecent = [];
+  await Promise.all(NODES.map(async (n) => {
+    const el = $('node-' + n.name);
+    try {
+      const t0 = performance.now();
+      const s = await (await fetch(n.url + '/stats', { signal: AbortSignal.timeout(6000) })).json();
+      const ms = Math.round(performance.now() - t0);
+      up++;
+      maxSettled = Math.max(maxSettled, s.settled);
+      maxVolume = Math.max(maxVolume, s.volume);
+      maxAccounts = Math.max(maxAccounts, s.accounts);
+      el.querySelector('.st').innerHTML = '<span class="up">online</span>';
+      el.querySelector('.lat').textContent = ms + ' ms';
+      el.querySelector('.set').textContent = s.settled.toLocaleString();
+      try {
+        const r = await (await fetch(n.url + '/recent', { signal: AbortSignal.timeout(6000) })).json();
+        for (const tx of r) allRecent.push(tx);
+      } catch {}
+    } catch {
+      el.querySelector('.st').innerHTML = '<span class="down">offline</span>';
+      el.querySelector('.lat').textContent = '—';
+    }
+  }));
+
+  $('c-settled').textContent = maxSettled.toLocaleString();
+  $('c-volume').textContent = maxVolume.toLocaleString();
+  $('c-accounts').textContent = maxAccounts.toLocaleString();
+  $('c-up').textContent = up + ' / 4';
+
+  // de-dupe across authorities by (from,to,amount,at) and show newest first
+  const feed = $('feed');
+  allRecent.sort((a, b) => b.at - a.at);
+  const fresh = [];
+  for (const tx of allRecent) {
+    const key = tx.from + tx.to + tx.amount + tx.at;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    fresh.push(tx);
+  }
+  if (fresh.length) {
+    if (feed.querySelector('.empty')) feed.innerHTML = '';
+    for (const tx of fresh.reverse()) {
+      const row = document.createElement('div');
+      row.className = 'tx';
+      const when = new Date(tx.at).toLocaleTimeString();
+      row.innerHTML =
+        `<div class="parties">${tx.from}… <span class="arrow">→</span> ${tx.to}…</div>` +
+        `<div class="amt">${tx.amount.toLocaleString()}</div>` +
+        `<div class="meta">${when}${tx.ref ? '' : ''}</div>` +
+        `<div class="ref">${tx.ref ? 'ref ' + tx.ref.slice(0, 8) : ''}</div>`;
+      feed.insertBefore(row, feed.firstChild);
+    }
+    while (feed.children.length > 40) feed.removeChild(feed.lastChild);
+  }
+}
+
+poll();
+setInterval(poll, 4000);
+</script>
+</body>
+</html>
