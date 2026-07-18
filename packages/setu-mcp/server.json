@@ -1,0 +1,15 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "io.github.rainaajay/setu",
+  "description": "Hold a Setu wallet and pay or charge other agents — feeless, instant settlement, no blockchain.",
+  "repository": { "url": "https://github.com/rainaajay/setu", "source": "github" },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "setu-mcp",
+      "version": "0.1.0",
+      "transport": { "type": "stdio" }
+    }
+  ]
+}

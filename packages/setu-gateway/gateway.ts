@@ -36,29 +36,40 @@ function json(res: ServerResponse, code: number, body: unknown, extra: Record<st
 // service does and how to pay for it. Served at /.well-known/agent-card.json.
 function agentCard() {
   return {
+    // Core A2A AgentCard fields (github.com/a2aproject/A2A).
+    protocolVersion: '0.3.0',
     name: 'Setu Quote Service',
     description: 'A demonstration paid API on the Setu settlement network. Returns a market quote; each call costs 1 test unit, payable over Setu with no account or API key.',
     url: PUBLIC_URL,
+    preferredTransport: 'HTTP+JSON',
     version: '0.1.0',
     provider: { organization: 'Setu', url: 'https://setu-mocha.vercel.app' },
-    capabilities: { streaming: false, payments: true },
-    payments: {
-      protocol: 'x402',
-      scheme: 'setu',
-      network: 'setu-testnet',
-      settlement: 'https://setu-mocha.vercel.app',
-      committee: { authorities: MAINNET.authorities, quorum: MAINNET.quorum },
-      note: 'Test units, not money.',
-    },
+    capabilities: { streaming: false, pushNotifications: false, stateTransitionHistory: false },
+    defaultInputModes: ['text/plain'],
+    defaultOutputModes: ['application/json'],
     skills: [
       {
         id: 'premium-quote',
         name: 'Premium quote',
         description: 'Returns a market quote. Payment-gated at 1 unit via Setu (x402).',
-        endpoint: PUBLIC_URL + RESOURCE,
-        price: { amount: PRICE, asset: 'SETU-TESTNET-UNIT' },
+        tags: ['finance', 'quote', 'paid', 'x402'],
+        examples: ['Get a market quote'],
+        inputModes: ['text/plain'],
+        outputModes: ['application/json'],
       },
     ],
+    // Payment extension (not core A2A): how to pay for the skills, using x402 over Setu.
+    payments: {
+      protocol: 'x402',
+      scheme: 'setu',
+      network: 'setu-testnet',
+      endpoint: PUBLIC_URL + RESOURCE,
+      payTo: PAY_TO,
+      price: { amount: PRICE, asset: 'SETU-TESTNET-UNIT' },
+      settlement: 'https://setu-mocha.vercel.app',
+      committee: { authorities: MAINNET.authorities, quorum: MAINNET.quorum },
+      note: 'Test units, not money.',
+    },
   };
 }
 

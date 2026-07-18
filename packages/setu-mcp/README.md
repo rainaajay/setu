@@ -38,4 +38,21 @@ stored at `~/.setu-wallet.json` (override with `SETU_MCP_WALLET`).
 node smoke-test.ts   # drives the server over stdio against the live network
 ```
 
+## Discovery & registries
+
+The repository is tagged with the topics MCP crawlers index (`mcp`, `mcp-server`,
+`model-context-protocol`, `agent-payments`, `x402`, `a2a`, …), so directories that
+auto-index GitHub (Glama, PulseMCP, mcp.so) can find it.
+
+`server.json` is the manifest for the official [MCP Registry](https://github.com/modelcontextprotocol/registry).
+Formal listing there is two owner-run, login-gated steps (not automatable headless):
+
+```
+npm publish            # from this folder, once (makes `npx setu-mcp` work)
+mcp-publisher login github && mcp-publisher publish   # submits server.json
+```
+
+Companion x402/A2A discovery for non-MCP agents: the gateway's agent card at
+<https://setu-gateway.fly.dev/.well-known/agent-card.json>.
+
 Network: <https://setu-mocha.vercel.app>. Units are test units, not money. MIT.
