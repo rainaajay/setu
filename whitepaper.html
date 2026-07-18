@@ -263,8 +263,15 @@ Certificate   { order, senderSignature,
   which is a status conferred by law and contract at a defined point — a protocol cannot assert it about
   itself. International standards prefer settlement in central-bank money, or a settlement asset with tightly
   controlled credit and liquidity risk. Setu is deliberately asset-agnostic: it supplies fast agreement among
-  accountable parties and a verifiable receipt, and must be anchored to a defined claim. One concrete reference
-  architecture, end to end:</p>
+  accountable parties and a verifiable receipt, and must be anchored to a defined claim.</p>
+  <p><strong>The testbed adopts the cleanest defined claim: a closed-loop Credit.</strong> A unit is a Credit
+  issued by a single named <em>Treasury</em>, redeemable only for services within the Setu economy — not money,
+  not a fiat claim, not redeemable for cash. The supply is fixed at genesis and every Credit traces to a
+  Treasury issuance, so provenance and total supply are auditable on the network (demonstrated in
+  <code>src/demo-issuer.ts</code>; full terms in <a href="/credits.html">Setu Credits</a>). This resolves "what
+  is being settled" for a controlled ecosystem without touching regulated money. The regulated-money variant
+  below is the future upgrade, not a present claim. One concrete reference architecture for that variant, end
+  to end:</p>
   <ol>
     <li>A <strong>regulated issuer</strong> (e-money institution, licensed stablecoin issuer, or bank) receives
     fiat and holds it in a <strong>segregated, safeguarded omnibus account or reserve</strong>.</li>
@@ -323,7 +330,7 @@ Certificate   { order, senderSignature,
     <tr><td>Delegated-budget enforcement</td><td>Implemented and demonstrated server-side (§5).</td></tr>
     <tr><td>Chained-spend correctness</td><td>Demonstrated locally and across the live four-region network (~183&nbsp;ms/hop).</td></tr>
     <tr><td>Independent validators</td><td>Not yet — one operator/codebase/cloud (replication).</td></tr>
-    <tr><td>Real settlement asset &amp; legal finality</td><td>Not yet — test units; requires a regulated issuer (§7).</td></tr>
+    <tr><td>Settlement asset</td><td>Closed-loop Credit defined and issued from a fixed-supply Treasury (auditable). Regulated-money anchoring &amp; legal finality remain future.</td></tr>
     <tr><td>Production scale</td><td>Unproven — laptop benchmark only.</td></tr>
     <tr><td>Sustainable economics</td><td>Unproven — "no per-transaction fee," not free; funding model TBD.</td></tr>
     <tr><td>Governance &amp; maintenance</td><td>Open — rotation/upgrades may need a consensus layer (§4).</td></tr>
@@ -334,7 +341,7 @@ Certificate   { order, senderSignature,
     <tr><th>Item</th><th>Status</th></tr>
     <tr><td>Settlement core, live four-region network, trust plane, wallet, explorer, SDK, delegated budgets</td><td>Done.</td></tr>
     <tr><td>Wide-area chained-spend benchmark across the four regions</td><td>Done — 48/48 chained spends first-try, ~183&nbsp;ms/hop, no extra delay over a fresh payment.</td></tr>
-    <tr><td>Anchor units to a regulated settlement asset (§7)</td><td>Design done; needs an issuer partner or explicit closed-loop.</td></tr>
+    <tr><td>Anchor units to a defined claim (§7)</td><td>Done for the testbed — closed-loop Credit, operator-issued, fixed supply (<a href="/credits.html">terms</a>). Regulated-money variant still needs an issuer partner.</td></tr>
     <tr><td>x402 / AP2 interoperability</td><td>Interoperate rather than replace.</td></tr>
     <tr><td>Independent consortium authorities</td><td>Distinct operators, codebases, clouds — real common-mode independence.</td></tr>
     <tr><td>Governance layer for rotation / upgrades / validator removal</td><td>Adopt consensus where maintenance genuinely needs it.</td></tr>

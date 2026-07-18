@@ -9,6 +9,7 @@
     "demo:live": "node src/demo-live.ts",
     "demo:trust": "node src/demo-trust.ts",
     "demo:allowance": "node src/demo-allowance.ts",
+    "demo:issuer": "node src/demo-issuer.ts",
     "devnet": "node src/devnet.ts",
     "bench": "node src/bench.ts",
     "bench:chain": "node src/chain-bench.ts",

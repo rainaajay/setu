@@ -56,6 +56,8 @@ node src/demo-trust.ts  # v0.3: Plane 2, committee-less P2P trust layer (BFT has
 node src/demo-allowance.ts # server-enforced delegated budgets: authorities track cumulative
                         # spend, per-payment cap, and revocation — a signed credential alone
                         # cannot be over-spent or double-presented across merchants
+node src/demo-issuer.ts # what a unit IS: a closed-loop Credit issued from a fixed-supply
+                        # Treasury (every unit traces to the issuer; supply conserved). See CREDITS.md
 ```
 
 Plane 1 demos prove: one-round-trip finality (~4ms over real sockets), liveness with an

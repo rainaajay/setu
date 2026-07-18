@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setu Credits — issuance and redemption terms</title>
+<meta name="description" content="What a unit on the Setu network is: a closed-loop, operator-issued credit redeemable only for services in the Setu economy. Not money.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M10 70 Q50 20 90 70' fill='none' stroke='%23b3702d' stroke-width='9' stroke-linecap='round'/><circle cx='10' cy='70' r='8' fill='%23b3702d'/><circle cx='90' cy='70' r='8' fill='%23b3702d'/></svg>">
+<style>
+  :root { --bg:#f7f5f0; --panel:#fffdf9; --ink:#211e19; --muted:#6a6459; --line:#e5ded1; --accent:#b3702d; --warn:#a5502a; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#131209; --panel:#1c1a13; --ink:#ece7db; --muted:#9c9584; --line:#2c2920; --accent:#d99a4e; --warn:#e0925a; } }
+  :root[data-theme="light"] { --bg:#f7f5f0; --ink:#211e19; --muted:#6a6459; --line:#e5ded1; --accent:#b3702d; }
+  :root[data-theme="dark"] { --bg:#131209; --ink:#ece7db; --muted:#9c9584; --line:#2c2920; --accent:#d99a4e; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--ink); font-family:Georgia,'Times New Roman',serif; line-height:1.65; padding:clamp(20px,4vw,56px) 20px; -webkit-font-smoothing:antialiased; }
+  main { max-width:720px; margin:0 auto; }
+  .backlink { display:inline-block; margin-bottom:22px; font-size:14px; color:var(--accent); }
+  .eyebrow { font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin-bottom:12px; }
+  h1 { font-size:clamp(28px,5vw,40px); font-weight:400; line-height:1.15; }
+  h1 .dot { color:var(--accent); }
+  .sub { color:var(--muted); font-size:clamp(16px,2.3vw,19px); margin-top:10px; font-style:italic; padding-bottom:20px; border-bottom:2px solid var(--line); }
+  h2 { font-size:clamp(19px,3vw,23px); font-weight:400; margin:34px 0 4px; }
+  p { margin:12px 0; }
+  strong { font-weight:bold; }
+  a { color:var(--accent); }
+  .warn { background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--warn); border-radius:10px; padding:16px 20px; margin:24px 0; }
+  .warn b { color:var(--warn); }
+  footer { margin-top:40px; padding-top:16px; border-top:2px solid var(--line); color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+  <a class="backlink" href="/">← setu-mocha.vercel.app</a>
+  <div class="eyebrow">Issuance &amp; redemption terms</div>
+  <h1>Setu Credits<span class="dot">.</span></h1>
+  <p class="sub">What a unit on the Setu network is — the concrete answer to the white paper's central question (§6–§7): what does the number represent?</p>
+
+  <div class="warn"><b>A Setu Credit is not money.</b> Not a bank deposit, stablecoin, e-money, or
+  security; not a claim on any currency; not redeemable for cash. On the current network it is a
+  <b>test credit</b> with no monetary value.</div>
+
+  <h2>What it is</h2>
+  <p>A <strong>Setu Credit</strong> is a closed-loop credit issued by the operator of the Setu
+  network. It is redeemable for one thing: services offered by participants <em>within the Setu
+  economy</em> — like a platform credit or an arcade token, useful inside the ecosystem and nowhere
+  else.</p>
+
+  <h2>Issuer</h2>
+  <p>Every Credit is issued by a single named account, the <strong>Treasury</strong>, controlled by
+  the operator. Every Credit in circulation traces back to a Treasury issuance — no anonymous or
+  hidden minting. The Treasury address and total supply are published and auditable on the network.</p>
+
+  <h2>Supply</h2>
+  <p>The supply is <strong>fixed at genesis</strong>. The Treasury is created with a defined number
+  of Credits and issues from that pool; it does not mint new Credits afterwards. "Circulating"
+  Credits are those the Treasury has issued and not yet had returned. (Demonstrated in
+  <code>src/demo-issuer.ts</code>: the sum of all holdings always equals the fixed supply.)</p>
+
+  <h2>Issuance</h2>
+  <p><strong>On the testbed:</strong> the Treasury grants Credits on request (the faucet); they are
+  free test credits, worthless outside the demo. <strong>In a real closed-loop deployment:</strong>
+  Credits would be issued against defined consideration — granted for services rendered, or purchased
+  within a specific commercial ecosystem whose operator is the acknowledged issuer.
+  <strong>In a regulated-money variant (future):</strong> Credits would be a beneficial claim against
+  money held by a licensed issuer, per white paper §7 — out of scope here and not claimed.</p>
+
+  <h2>Redemption</h2>
+  <p>A Credit is used by spending it for a service inside the economy, and may be returned to the
+  Treasury. <strong>There is no promise to redeem a Credit for cash or any external asset.</strong>
+  Holding a Credit is holding the ability to pay for in-network services, nothing more.</p>
+
+  <h2>Wind-down</h2>
+  <p>If the testbed is retired, Credits cease to have any function. Because they were never money and
+  carried no external claim, there is nothing to redeem and no one is owed anything.</p>
+
+  <footer>Test credits, not money. Research prototype, provided as-is; not an offer of any financial
+  product. Software MIT-licensed. Network: <a href="/">setu-mocha.vercel.app</a>.</footer>
+</main>
+</body>
+</html>
