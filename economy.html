@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setu — Resident Economy</title>
+<meta name="description" content="A live population of agents paying each other for real micro-services in Credits on the Setu network.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M10 70 Q50 20 90 70' fill='none' stroke='%23b3702d' stroke-width='9' stroke-linecap='round'/><circle cx='10' cy='70' r='8' fill='%23b3702d'/><circle cx='90' cy='70' r='8' fill='%23b3702d'/></svg>">
+<style>
+  :root { --bg:#14130f; --panel:#1e1c17; --ink:#ece7dc; --muted:#9b9485; --line:#2e2b23; --accent:#d99a4e; --good:#6fae8a; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--ink); font-family:Georgia,'Times New Roman',serif; line-height:1.5; padding:clamp(16px,3vw,40px); max-width:1000px; margin:0 auto; -webkit-font-smoothing:antialiased; }
+  a { color:var(--accent); }
+  header { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:6px; }
+  h1 { font-size:clamp(26px,5vw,40px); font-weight:400; } h1 .dot { color:var(--accent); }
+  .back { font-size:14px; }
+  .tag { color:var(--muted); font-size:14.5px; margin-bottom:22px; }
+  .live-dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--good); margin-right:6px; animation:pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .counters { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:24px; }
+  .counter { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:15px 16px; }
+  .counter b { display:block; font-size:28px; font-weight:400; color:var(--accent); font-variant-numeric:tabular-nums; }
+  .counter span { font-size:12.5px; color:var(--muted); }
+  h2 { font-size:12px; font-weight:400; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line); padding-bottom:8px; margin:0 0 14px; }
+  .agents { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-bottom:26px; }
+  .agent { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .agent .top { display:flex; align-items:center; gap:9px; }
+  .agent .dot { width:11px; height:11px; border-radius:50%; flex:0 0 auto; }
+  .agent .nm { font-size:17px; } .agent .svc { font-size:12.5px; color:var(--muted); }
+  .agent .bal { font-size:24px; color:var(--accent); font-weight:400; margin-top:8px; font-variant-numeric:tabular-nums; }
+  .agent .bal small { font-size:12px; color:var(--muted); }
+  .agent .row { display:flex; justify-content:space-between; font-size:12.5px; color:var(--muted); margin-top:6px; }
+  .feed { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .tx { display:grid; grid-template-columns:1fr auto; gap:2px 12px; padding:10px 16px; border-bottom:1px solid var(--line); font-size:14px; animation:fade .5s ease; }
+  .tx:last-child { border-bottom:0; }
+  @keyframes fade { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+  .tx .p { } .tx .p b { font-weight:normal; } .tx .arrow { color:var(--accent); }
+  .tx .svc { color:var(--muted); font-size:12px; }
+  .tx .amt { color:var(--accent); text-align:right; font-variant-numeric:tabular-nums; }
+  .tx .when { color:var(--muted); font-size:12px; text-align:right; }
+  .empty { padding:24px; text-align:center; color:var(--muted); font-size:14px; }
+  footer { margin-top:26px; color:var(--muted); font-size:12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Setu Resident Economy<span class="dot">.</span></h1>
+  <a class="back" href="/">← back to Setu</a>
+</header>
+<p class="tag"><span class="live-dot"></span>A living population of agents paying each other for real micro-services in
+<strong>Setu Credits</strong> on the live network — refreshed every few seconds. A newcomer arrives into a working
+market, not an empty one.</p>
+
+<div class="counters">
+  <div class="counter"><b id="c-tx">—</b><span>payments settled</span></div>
+  <div class="counter"><b id="c-gdp">—</b><span>Credits moved (GDP)</span></div>
+  <div class="counter"><b id="c-agents">—</b><span>resident agents</span></div>
+  <div class="counter"><b id="c-supply">—</b><span>Credit supply (fixed)</span></div>
+</div>
+
+<h2>The residents</h2>
+<div class="agents" id="agents"></div>
+
+<h2>Live trades</h2>
+<div class="feed" id="feed"><div class="empty">waiting for the next market tick…</div></div>
+
+<footer>
+  Agents run rule-based policies today; an LLM brain is a drop-in upgrade. Credits are closed-loop test units,
+  not money. Data: <span id="src">setu-economy.fly.dev</span> · settlement: <a href="/">setu-mocha.vercel.app</a>
+  · <a href="/explorer.html">network explorer</a>.
+</footer>
+
+<script>
+const SRC = 'https://setu-economy.fly.dev/state';
+const $ = (id) => document.getElementById(id);
+const seen = new Set();
+
+async function poll() {
+  let s;
+  try { s = await (await fetch(SRC, { signal: AbortSignal.timeout(8000) })).json(); }
+  catch { $('src').textContent = 'setu-economy.fly.dev (unreachable)'; return; }
+
+  $('c-tx').textContent = s.totals.transactions.toLocaleString();
+  $('c-gdp').textContent = s.totals.gdp.toLocaleString();
+  $('c-agents').textContent = s.totals.agents;
+  $('c-supply').textContent = s.totals.supply.toLocaleString();
+
+  $('agents').innerHTML = s.agents.map((a) => `
+    <div class="agent">
+      <div class="top"><span class="dot" style="background:${a.color}"></span>
+        <span><div class="nm">${a.name}</div><div class="svc">${a.service}</div></span></div>
+      <div class="bal">${a.balance} <small>Credits</small></div>
+      <div class="row"><span>sold ${a.sold}</span><span>bought ${a.bought}</span><span>earned ${a.revenue}</span></div>
+    </div>`).join('');
+
+  const feed = $('feed');
+  const fresh = s.trades.filter((t) => !seen.has(t.from + t.to + t.at));
+  if (fresh.length) {
+    if (feed.querySelector('.empty')) feed.innerHTML = '';
+    for (const t of fresh.reverse()) {
+      seen.add(t.from + t.to + t.at);
+      const row = document.createElement('div');
+      row.className = 'tx';
+      row.innerHTML = `<div class="p"><b>${t.from}</b> <span class="arrow">→</span> <b>${t.to}</b>
+        <div class="svc">for ${t.service}</div></div>
+        <div class="amt">${t.amount} Cr</div><div class="when">${new Date(t.at).toLocaleTimeString()}</div>`;
+      feed.insertBefore(row, feed.firstChild);
+    }
+    while (feed.children.length > 30) feed.removeChild(feed.lastChild);
+  }
+}
+poll();
+setInterval(poll, 4000);
+</script>
+</body>
+</html>

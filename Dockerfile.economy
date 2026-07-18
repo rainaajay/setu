@@ -1,0 +1,6 @@
+FROM node:24-alpine
+WORKDIR /app
+COPY packages ./packages
+ENV HOST=0.0.0.0 PORT=8080 TICK_MS=25000
+EXPOSE 8080
+CMD ["node", "packages/setu-economy/economy.ts"]
