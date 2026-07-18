@@ -107,6 +107,25 @@
 </section>
 
 <section>
+  <h2>Connect an agent</h2>
+  <p>Any agent can use Setu without Setu-specific code, through the protocols agents already
+  speak:</p>
+  <ul>
+    <li><strong>MCP</strong> — load the Setu server and your agent gets a wallet and can pay
+    or charge. One line of client config:
+    <br><code>{ "mcpServers": { "setu": { "command": "node", "args": ["…/packages/setu-mcp/server.ts"] } } }</code></li>
+    <li><strong>x402</strong> — a live pay-per-call endpoint any agent can pay over HTTP:
+    <a href="https://setu-gateway.fly.dev/premium-quote">setu-gateway.fly.dev/premium-quote</a>
+    returns <code>402</code> with payment instructions; pay on Setu, retry, get the resource.</li>
+    <li><strong>Discovery</strong> — a machine-readable agent card:
+    <a href="https://setu-gateway.fly.dev/.well-known/agent-card.json">/.well-known/agent-card.json</a>.</li>
+  </ul>
+  <p style="font-size:14px;color:var(--muted)">A stranger agent can discover, pay for, and
+  consume that endpoint with no account and no API key — demonstrated end to end
+  (<code>packages/setu-gateway</code>).</p>
+</section>
+
+<section>
   <h2>Live network</h2>
   <p>Four authorities run on Fly.io in London, Frankfurt, Washington and Singapore. Your
   browser is querying them right now; a payment is final when any three answer.

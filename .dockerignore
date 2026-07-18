@@ -1,7 +1,11 @@
 *
 !src
 !committee-prod.json
+!packages
 src/demo*.ts
 src/devnet.ts
 src/bench.ts
 src/wallet.ts
+packages/**/demo.ts
+packages/**/smoke-test.ts
+packages/**/example.ts

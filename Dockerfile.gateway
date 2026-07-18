@@ -1,0 +1,6 @@
+FROM node:24-alpine
+WORKDIR /app
+COPY packages ./packages
+ENV HOST=0.0.0.0 PORT=8080
+EXPOSE 8080
+CMD ["node", "packages/setu-gateway/gateway.ts"]

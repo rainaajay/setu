@@ -303,7 +303,10 @@ Certificate   { order, senderSignature,
   auditable programmatic limits (§5); data minimisation; or deployment inside a controlled ecosystem the
   operator already owns. Where none of these dominate, the incumbent's money, acceptance, and network effects
   will — and Setu should not pretend otherwise. Payments are adopted on acceptance and interoperability, which
-  is why Setu's roadmap is to interoperate (x402/AP2) rather than to replace.</p>
+  is why Setu's roadmap is to interoperate (x402/AP2) rather than to replace. A first step is live: an
+  x402-style gateway (<a href="https://setu-gateway.fly.dev/premium-quote">setu-gateway.fly.dev</a>) lets any
+  agent pay a web resource over Setu with no Setu-specific code, discoverable via an A2A-style agent card, and
+  an MCP server lets any MCP agent hold a Setu wallet directly.</p>
   <p>A related bound Setu does not solve: a payment receipt is not a completed transaction. It proves an agent
   paid an invoice, not that the service was delivered, correct, or refundable. Those need escrow, dispute
   handling, or conditional execution — several of which are multi-party atomic operations where an intermediary
