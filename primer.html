@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setu — In Plain Words</title>
+<meta name="description" content="A plain-language guide: how the whole blockchain world works today, what's broken about it, and what Setu is trying to do — readable, or listen to it aloud.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M10 70 Q50 20 90 70' fill='none' stroke='%23b3702d' stroke-width='9' stroke-linecap='round'/><circle cx='10' cy='70' r='8' fill='%23b3702d'/><circle cx='90' cy='70' r='8' fill='%23b3702d'/></svg>">
+<style>
+  :root { --bg:#f7f5f0; --panel:#fffdf9; --ink:#221f1a; --soft:#55504722; --muted:#6a6459; --line:#e5ded1; --accent:#b3702d; --maxw:720px; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141209; --panel:#1d1b14; --ink:#ece7db; --soft:#ded7c714; --muted:#9c9584; --line:#2c2920; --accent:#d99a4e; } }
+  :root[data-theme="light"] { --bg:#f7f5f0; --panel:#fffdf9; --ink:#221f1a; --muted:#6a6459; --line:#e5ded1; --accent:#b3702d; }
+  :root[data-theme="dark"] { --bg:#141209; --panel:#1d1b14; --ink:#ece7db; --muted:#9c9584; --line:#2c2920; --accent:#d99a4e; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--ink); font-family:Georgia,'Times New Roman',serif; line-height:1.72; -webkit-font-smoothing:antialiased; padding:0 20px clamp(40px,8vw,90px); }
+  main { max-width:var(--maxw); margin:0 auto; }
+  .backlink { display:inline-block; margin:clamp(20px,4vw,40px) 0 0; font-size:14px; color:var(--accent); }
+  .eyebrow { font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin:26px 0 14px; }
+  h1 { font-size:clamp(30px,6vw,48px); font-weight:400; line-height:1.12; }
+  h1 .dot { color:var(--accent); }
+  .deck { font-size:clamp(18px,2.6vw,21px); color:var(--muted); margin-top:16px; font-style:italic; }
+  .meta { font-size:13.5px; color:var(--muted); margin-top:16px; }
+  .player { position:sticky; top:0; z-index:20; background:var(--bg); border-bottom:1px solid var(--line); padding:12px 0; margin:22px 0 8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .player button { font-family:inherit; font-size:14.5px; color:#fff; background:var(--accent); border:0; border-radius:9px; padding:9px 18px; cursor:pointer; }
+  .player button.ghost { color:var(--ink); background:none; border:1px solid var(--line); }
+  .player .status { font-size:13px; color:var(--muted); }
+  article > h2 { font-size:clamp(22px,3.4vw,28px); font-weight:400; margin:46px 0 6px; line-height:1.2; }
+  article > h2 .n { color:var(--accent); font-size:.66em; margin-right:10px; }
+  article > h3 { font-size:18px; font-weight:400; font-style:italic; color:var(--ink); margin:26px 0 4px; }
+  article > p { margin:15px 0; font-size:18px; }
+  .lead { font-size:20px !important; }
+  ul { margin:14px 0 14px 22px; } li { margin:9px 0; font-size:18px; } li::marker { color:var(--accent); }
+  strong { font-weight:bold; }
+  a { color:var(--accent); }
+  .callout { background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:10px; padding:16px 22px; margin:24px 0; }
+  .callout p { font-size:17px; margin:8px 0; }
+  .speaking { background:var(--soft); border-radius:4px; }
+  hr { border:0; border-top:1px solid var(--line); margin:40px 0; }
+  footer { margin-top:44px; padding-top:18px; border-top:2px solid var(--line); color:var(--muted); font-size:13.5px; }
+  @media print { .player, .backlink { display:none; } body { background:#fff; color:#000; } }
+</style>
+</head>
+<body>
+<main>
+  <a class="backlink" href="/">← setu-mocha.vercel.app</a>
+
+  <div class="eyebrow">A plain-language guide · listen or read</div>
+  <h1>Setu, in plain words<span class="dot">.</span></h1>
+  <p class="deck">How the whole blockchain world works today, what's broken about it, and what we're trying to
+  do instead — told simply, with no jargon.</p>
+  <div class="meta">19 July 2026 · about a 40-minute read, or press Listen and let it read to you.</div>
+
+  <div class="player">
+    <button id="play">▶ Listen</button>
+    <button id="stop" class="ghost">Stop</button>
+    <span class="status" id="status">Uses your device's built-in voice.</span>
+  </div>
+
+  <article id="article">
+
+  <p class="lead">This is the version with no jargon. If the white paper felt like it was written for engineers,
+  that's because it was. This one is written for a smart person who has better things to do than learn how
+  cryptography works. By the end you'll understand what blockchain actually is, why so many people are excited
+  and so many others are exhausted by it, and what we've built that is different — and you'll be able to explain
+  it to someone else over dinner.</p>
+
+  <h2><span class="n">1</span>First, the real problem: trust between strangers</h2>
+  <p>Every payment system ever invented is really solving one problem: how do two people who don't fully trust
+  each other swap value without one of them getting cheated? For most of history the answer was a trusted
+  middle-man. If I owe you money and we don't trust each other, we both trust the bank. The bank keeps the
+  record of who owns what, and when I pay you, the bank moves the number from my column to yours. You don't
+  have to trust me. You just have to trust the bank.</p>
+  <p>This works astonishingly well, and it is the backbone of the modern world. But it has three quiet costs.
+  First, the middle-man charges a fee, because keeping everyone's records and carrying the risk is a business.
+  Second, the middle-man is slow, because there are checks, batches, and cut-off times — which is why a bank
+  transfer can still take a day. Third, the middle-man is a gatekeeper: it can freeze you out, and if it fails,
+  your money is caught in the wreckage.</p>
+  <p>For everyday life, we happily accept these costs. A card fee on a £40 dinner is invisible. Waiting a day
+  for a transfer is fine. But hold onto these three costs — fees, slowness, gatekeeping — because they are the
+  villains of this whole story. Everything that follows is an attempt to reduce them, and every attempt trades
+  one problem for another.</p>
+
+  <h2><span class="n">2</span>Where blockchain came from</h2>
+  <p>In 2008, in the middle of a financial crisis in which the trusted middle-men had just spectacularly failed,
+  an anonymous person or group calling themselves Satoshi Nakamoto published a short paper describing something
+  new: a way to keep a record of who owns what <em>without any middle-man at all</em>. No bank. No company. Just
+  a network of ordinary computers, run by strangers all over the world, that somehow agree on the record between
+  themselves. They called the first version Bitcoin, and it went live in early 2009.</p>
+  <p>The trick at the heart of it is worth understanding, because everything else is a variation on it. Imagine
+  a giant shared notebook — a ledger — that lists every payment ever made. Everyone in the network has an
+  identical copy. When I want to pay you, I announce it to the whole network: "I'm sending this to you." The
+  problem is obvious: what stops me announcing that I'm paying you, and at the very same moment announcing that
+  I'm paying someone else with the same coins? Who decides which one is real, if there's no bank?</p>
+  <p>Bitcoin's answer is the famous, and infamous, part. Roughly every ten minutes, the network holds a kind of
+  lottery. Thousands of computers race to solve a pointless, enormously hard mathematical puzzle. The puzzle has
+  no purpose except that it takes a colossal amount of electricity and computing power to solve, and — crucially
+  — it's trivial for everyone else to check the answer once found. Whoever wins the lottery gets to add the next
+  page to the notebook, decide which payments go on it, and is rewarded with newly created coins for their
+  trouble. This is "mining."</p>
+  <p>Why the pointless puzzle? Because it makes cheating expensive. To rewrite history — to un-spend coins you
+  already spent — you'd have to redo all that puzzle-solving faster than the entire rest of the network combined.
+  It's not impossible, it's just breathtakingly expensive, so nobody bothers. Trust, in Bitcoin, is bought with
+  electricity. The system is honest because dishonesty costs more than it's worth. That is the whole idea:
+  replace "trust the bank" with "trust that no one will burn a country's worth of electricity to cheat you."</p>
+  <div class="callout">
+    <p><strong>The one-sentence version of blockchain:</strong> it's a shared record of who owns what, kept
+    honest not by a trusted company but by making it ruinously expensive for anyone to tamper with it.</p>
+  </div>
+  <p>And it worked. For the first time, two strangers anywhere on Earth could pass value directly to each other,
+  with no bank, no permission, and no company in the middle that could stop them. To a lot of people — especially
+  those who'd just watched banks melt down, or who live under governments that freeze accounts — that was
+  genuinely revolutionary. That feeling of "money without a master" is why the whole thing has such a devoted
+  following, and it's important to respect it even while being clear-eyed about the costs.</p>
+
+  <h2><span class="n">3</span>What it grew into</h2>
+  <p>Bitcoin could do one thing: move Bitcoin from one person to another. In 2015 a young programmer named
+  Vitalik Buterin and others launched Ethereum, which added a second idea: what if the shared notebook could
+  also run little programs? Not just "move coins from A to B," but "move these coins from A to B, but only if
+  such-and-such condition is true." These programs are called <strong>smart contracts</strong> — a slightly
+  grand name for what are really just automatic rules that live on the network and run exactly as written,
+  with no one able to interfere.</p>
+  <p>This opened the floodgates, because now you could build things on top. Over the next decade an entire
+  economy grew on these programmable networks. It's worth knowing the main pieces, because "the blockchain
+  ecosystem" is really this pile of things stacked on the original idea:</p>
+  <ul>
+    <li><strong>Stablecoins.</strong> Ordinary crypto coins swing wildly in price, which makes them terrible for
+    actually paying for things. Stablecoins solve this by promising to be worth exactly one dollar, each one
+    backed by a real dollar (or something dollar-like) held in reserve by a company. Tether and Circle's USDC
+    are the big ones. Stablecoins are, quietly, the part of crypto that's most actually <em>used</em> as
+    money — because they behave like money.</li>
+    <li><strong>DeFi ("decentralised finance").</strong> Smart contracts that recreate banking — lending,
+    borrowing, trading, earning interest — but as automatic programs instead of institutions. At its best,
+    it's a bank with no bankers. At its worst, it's a casino with no bouncer.</li>
+    <li><strong>NFTs.</strong> A way to use the ledger to record that you own a specific one-of-a-kind digital
+    item — a piece of art, a collectible. For a while, fortunes were made and lost on cartoon apes. Most of
+    that mania has faded, but the underlying idea — a public record of who owns a unique thing — persists.</li>
+    <li><strong>Exchanges.</strong> Because using this stuff directly is hard, most people buy crypto through
+    companies like Coinbase or Binance — which are, ironically, exactly the kind of trusted middle-men the
+    whole thing was invented to avoid.</li>
+    <li><strong>Tokens.</strong> Anyone can create their own coin in an afternoon. Thousands have. A few
+    represent real projects; a great many are pure speculation or outright scams, engineered to pump in price
+    and dump on latecomers.</li>
+  </ul>
+  <p>One more important change. That electricity-guzzling lottery — proof of work — became an environmental
+  embarrassment as it grew to consume as much power as a medium-sized country. So in 2022 Ethereum switched to a
+  different method called <strong>proof of stake</strong>: instead of burning electricity to win the right to
+  update the ledger, you lock up a large pile of the coins themselves as a security deposit. Misbehave, and you
+  lose your deposit. This cut Ethereum's energy use by more than 99%. It also, quietly, changed the politics:
+  in proof of work the powerful are those with the most machines; in proof of stake the powerful are those with
+  the most money. The rich, in other words, got to keep being in charge — just more efficiently.</p>
+
+  <h2><span class="n">4</span>Why it never became everyday money</h2>
+  <p>After fifteen years and trillions of dollars, here is the honest scorecard: almost nobody buys their coffee
+  with blockchain. Why not? Go back to our three villains.</p>
+  <p><strong>Fees.</strong> On a busy day, sending a payment on these networks can cost several dollars or more,
+  because there's a limited amount of space on each new page of the ledger and everyone bids to get in. A fee
+  that's a rounding error on a large transfer makes a small payment absurd. You cannot build a business on
+  paying someone a tenth of a penny if the fee to do it is a dollar.</p>
+  <p><strong>Speed.</strong> Because the whole network has to agree on one shared history, and that agreement
+  takes time, payments are not instant. Bitcoin takes many minutes to be safely final. Newer networks are
+  faster, but "faster" still isn't the fraction of a second a shop terminal gives you, and the moment they get
+  busy, they clog.</p>
+  <p><strong>Complexity and danger.</strong> This is the quiet killer. To hold crypto yourself you manage a
+  secret key that, if lost, loses your money forever, and if stolen, hands it to a thief with no recourse — no
+  bank to call, no fraud department, no reversal. The whole space is riddled with scams, and even the big
+  trusted companies have collapsed: in 2022 the exchange FTX, run by a feted young billionaire, turned out to
+  be a fraud and vaporised billions of dollars of ordinary people's savings overnight. Every such collapse
+  teaches the public the same lesson: this is not yet safe for normal people.</p>
+  <p>And underneath all of it sits a stubborn technical fact that the industry calls the "trilemma": a
+  blockchain can be decentralised, secure, or fast — but it's ferociously hard to be all three at once. Push on
+  one and another gives way. Fifteen years of brilliant engineering has bent this trade-off but never broken
+  it. Every headline-grabbing "blockchain killer" quietly relocates the problem rather than removing it.</p>
+  <div class="callout">
+    <p><strong>So what did blockchain actually prove?</strong> Not that we should all use crypto instead of
+    banks. It proved something narrower and more durable: that <em>strangers can agree on who owns what without
+    a single company in the middle.</em> That idea is real and it isn't going away. The mistake was wrapping it
+    in a slow, expensive, one-size-fits-all machine and insisting it be used for everything.</p>
+  </div>
+
+  <h2><span class="n">5</span>Meanwhile, something new started happening</h2>
+  <p>While all this was going on, a completely different revolution arrived: artificial intelligence got good
+  enough to <em>act on its own</em>. Not just answer questions, but go off and do multi-step tasks — software
+  that people now call "agents." An agent can be told "research this and book me the best option," and it will
+  go away, gather information, use tools, and come back with a result.</p>
+  <p>Here's the part that matters for our story. To do their jobs, these agents increasingly need to <em>buy
+  things</em> — from other software. A research agent needs to buy data from a data provider. A coding agent
+  needs to rent computing power. One agent needs an answer that another agent can give — for a price. We are, in
+  other words, at the very beginning of software paying software: a machine-to-machine economy.</p>
+  <p>And this economy has payment needs unlike anything humans have. The amounts are tiny — a fraction of a
+  penny for a single answer. The frequency is enormous — thousands of payments an hour. The speed must be
+  instant — the whole point of an agent is that it doesn't wait around. And there's no human standing by to
+  approve each one. Now look back at what we have to pay with. Card networks are built for £40 human purchases
+  and charge fees that would dwarf a sub-penny payment. Banks are too slow. And blockchain, as we've just seen,
+  is too expensive, too slow, and too complex. <strong>The one kind of payment the coming machine economy most
+  needs is the one kind that no existing system does well.</strong></p>
+
+  <h2><span class="n">6</span>What Setu is</h2>
+  <p class="lead">Setu is a payment system built specifically for that gap: software paying software, instantly,
+  in tiny amounts, with no fees.</p>
+  <p>The simplest way to picture it is arcade tokens, or the chips at a casino. You load up once, and then you
+  can hand tokens back and forth instantly, as many times as you like, in amounts as small as you like, and
+  nobody takes a cut each time one changes hands. Setu is that idea, built for software, where the "handing
+  over" is a secure digital message that completes in about a fifth of a second, anywhere in the world.</p>
+  <p>Under the surface, here is how it works, in plain terms. Instead of thousands of computers running an
+  electricity lottery, Setu uses a small number of trusted, named record-keepers — think of them as a handful
+  of digital cashiers, and in our live system there are four, sitting in London, Frankfurt, Washington, and
+  Singapore. Each one keeps a copy of everyone's balance. When you want to pay someone, your wallet shows the
+  payment to all four cashiers at once. Each one checks the simple things — do you have the money, and have you
+  already spent it? — and if it's fine, they stamp it. The moment three of the four have stamped it, the payment
+  is <strong>done</strong>. Final. Spendable. That's the fifth of a second.</p>
+  <p>Because there's no giant shared queue that the whole world fights to get into, there's no bidding war, and
+  so there's no fee. Because there's no electricity lottery, there's no waste and no waiting. And because the
+  cashiers only ever have to check payments from the same account against each other — not against every payment
+  on Earth — the whole thing is simple and fast.</p>
+  <h3>The clever bit for agents: a leash you control</h3>
+  <p>There's one feature built specifically for the agent world, and it's the part worth remembering. You can
+  give a piece of software an <strong>allowance</strong> — "you may spend 10, at most 2 at a time, until Friday"
+  — and the payment system itself enforces it. Not the shop, not the software, the network. It physically cannot
+  be overspent, cannot be used twice, and the instant you cancel it, it stops working everywhere. It's like
+  handing your AI a prepaid company card with hard limits baked into the metal. You stay in control; the agent
+  does the work.</p>
+  <div class="callout">
+    <p><strong>And one honest, important point:</strong> Setu does not print or hold real money. It is the fast
+    <em>movement</em> layer. Real pounds or dollars sit behind it, held by a proper regulated company — a bank
+    or a licensed money provider. Setu just moves the claims on that money around, quickly and freely. It is
+    plumbing, not a currency. This is deliberate: it's what keeps it honest and lawful.</p>
+  </div>
+
+  <h2><span class="n">7</span>How this is different from blockchain — and why that's the point</h2>
+  <p>You might reasonably ask: if Setu also lets people pay each other without a bank in the middle, isn't it
+  just another blockchain? No — and the difference is the whole insight.</p>
+  <p>Blockchain burns electricity because its record-keepers are <strong>anonymous strangers</strong>. You have
+  to make cheating ruinously expensive precisely because you have no idea who they are and no way to punish them.
+  Setu makes the opposite choice: its cashiers are <strong>named and accountable</strong>. If one of them ever
+  cheats — stamps two conflicting payments — the maths leaves undeniable proof of exactly who did it, and they're
+  removed. The deterrent isn't wasted energy; it's simple accountability, the same way the real banking system
+  is kept honest. This is how the world's serious money systems already work. Setu just strips out the single
+  monopoly institution in the middle and replaces the oversight with software.</p>
+  <p>The trade is clear and worth stating plainly. Blockchain lets <em>completely anonymous</em> strangers take
+  part. Setu asks its handful of cashiers to be known and accountable. In exchange, Setu is instant, free, and
+  simple. For the machine economy — where every agent should trace back to a responsible owner anyway — that's
+  not a sacrifice. Anonymity was never the feature the agent economy needed.</p>
+  <p>We also deliberately gave up one thing blockchain can do: running arbitrary programs — those smart
+  contracts. Setu moves payments, cleanly and fast, and nothing more. That sounds like a limitation, and it is
+  — but it's also what deletes the entire casino layer of speculation, scams, and complexity in one stroke. We
+  did one thing on purpose, so we could do it extremely well.</p>
+
+  <h2><span class="n">8</span>What we've actually built</h2>
+  <p>This isn't a plan or a pitch deck. It runs. As of today, all of the following is live on the internet:</p>
+  <ul>
+    <li><strong>The network itself</strong> — the four cashiers, running in four regions on three continents,
+    stamping real payments in about a fifth of a second.</li>
+    <li><strong>A wallet</strong> anyone can create in their web browser in one click, and use to send a real
+    payment and watch it complete.</li>
+    <li><strong>The allowance system</strong> — the leash — enforced by the network, proven to be un-overspendable.</li>
+    <li><strong>A live little economy of software agents</strong> already buying and selling services from each
+    other on it, right now, so you can literally watch the machine economy move.</li>
+    <li><strong>Two doorways for other people's agents</strong> to plug in without any special effort, using the
+    standard ways agents already connect to tools and pay for things.</li>
+    <li><strong>All of the code, public and free</strong> for anyone to inspect, and a detailed white paper
+    that lists every strength and every honest weakness.</li>
+  </ul>
+  <p>It was built quickly, by one person working with an AI assistant, which is itself a small sign of the times:
+  the tools have got good enough that a working prototype of serious infrastructure no longer needs a team and a
+  year.</p>
+
+  <h2><span class="n">9</span>What's honestly still missing</h2>
+  <p>A guide that only lists the good parts isn't worth trusting, so here is the plain truth about what Setu is
+  <em>not</em> yet.</p>
+  <p>Today it runs on <strong>test credits, not real money</strong> — play money, so we can prove the machine
+  works without touching anyone's actual funds. Turning test credits into real value needs a regulated money
+  partner to sit behind it, and legal work to define exactly what a credit is a claim on. That's a business and
+  legal step, not a coding one, and it hasn't happened yet.</p>
+  <p>The four cashiers are, for now, all run by us. For the system to be truly trustworthy rather than merely a
+  clever demonstration, they need to be run by several independent organisations, so no single party — including
+  us — can be a point of failure. And before anyone moves real value across it, it needs an independent security
+  review by outside experts. None of these are secrets or surprises; they're the normal distance between a
+  working prototype and a real financial service, and they're all written down openly.</p>
+
+  <h2><span class="n">10</span>Where this could go</h2>
+  <p>Now the interesting part — looking forward. If the machine economy grows the way it looks like it will,
+  the world is going to need rails for software to pay software, and there are only a few plausible shapes those
+  rails can take. The big card networks are already building their own versions, which is the clearest possible
+  sign the need is real. Setu's bet is that alongside those, there's room for an <strong>independent, open,
+  fee-free rail that a company can run inside its own world</strong> rather than renting from a giant.</p>
+  <p>A few concrete directions from here. First, giving the resident agents real intelligence — right now they
+  follow simple rules; connect them to an AI brain and they start genuinely negotiating, deciding what's worth
+  buying, inventing new services. That turns the little demonstration economy into something that grows on its
+  own. Second, privacy — so that payments can be proven valid without revealing the amounts to anyone.
+  Third, and most importantly, the leap from test credits to real money through a regulated partner, which is
+  what turns a prototype into a product. And fourth, opening the cashier role to other institutions, so the
+  network becomes genuinely shared infrastructure rather than one team's project.</p>
+  <p>None of that is guaranteed. Most prototypes, however good, don't find their moment. But the shape of the
+  need is real, the thing works, and it's arriving at the same time as the machine economy it's built for. That
+  timing is the whole opportunity.</p>
+
+  <h2><span class="n">11</span>How to see it for yourself, in five minutes</h2>
+  <p>You don't have to take any of this on faith. Here's how to try the whole thing yourself, no technical
+  knowledge needed. Open <a href="/">setu-mocha.vercel.app</a> on your phone or computer and:</p>
+  <ul>
+    <li><strong>Watch the network breathe.</strong> On the main page you'll see the four cashiers light up with
+    how fast they're responding to your device, in real time. That's you, talking to four continents.</li>
+    <li><strong>Make a wallet and send a payment.</strong> On the same page there's a "Try it" section. Press
+    the button to create a wallet — it's made right there in your browser and belongs only to you. Press the
+    faucet to get some free test credits. Then send some to any address and watch it complete in a fraction of
+    a second. That's a real payment on a real network, across the world, for free.</li>
+    <li><strong>Watch the machine economy.</strong> Open the <a href="/economy.html">resident economy</a> page
+    and you'll see a handful of software agents paying each other for services, live, updating every few seconds.
+    This is the thing itself: software transacting with software.</li>
+    <li><strong>See a stranger get paid.</strong> There's a live web address that sells a "quote" for one credit;
+    any agent in the world can pay it and get the answer, with no account. It's the plumbing that lets the whole
+    thing connect to everyone else's software.</li>
+    <li><strong>Read the honest version.</strong> If you want the full technical story with every limitation
+    spelled out, the <a href="/whitepaper.html">white paper</a> is there. If you want the version for a potential
+    partner, there's a <a href="/pitch.html">partner brief</a>.</li>
+  </ul>
+
+  <h2><span class="n">12</span>How you can help it happen</h2>
+  <p>If you've read this far and you think it matters, the single most valuable thing anyone can do is not
+  technical at all: <strong>help it find its first real user.</strong> The thing this needs now isn't more
+  features — it's one real company willing to try it on a real problem. If you know someone who sells to
+  software — a data company, an API business, a cloud provider — or someone in a bank's innovation team who
+  thinks about the future of payments, the best possible thing you can do is send them the link and say "watch
+  this for two minutes, is this useful to anyone you know?"</p>
+  <p>Seeing it work is far more persuasive than any explanation, which is rather the point of building the real
+  thing instead of just writing about it. That's the whole story: the world is about to need software to pay
+  software, the existing ways can't do it, and here — running, today, free to try — is a way that can.</p>
+
+  </article>
+
+  <footer>
+    Setu · a settlement rail for the agent economy · <a href="/">setu-mocha.vercel.app</a> ·
+    <a href="https://github.com/rainaajay/setu">the code</a> · <a href="/whitepaper.html">the technical version</a>.
+    This is a research prototype; the credits on the live network are test units, not money.
+  </footer>
+</main>
+
+<script>
+// Audiobook: read the article aloud with the browser's built-in voice. No files, no network.
+(function () {
+  const synth = window.speechSynthesis;
+  const playBtn = document.getElementById('play');
+  const stopBtn = document.getElementById('stop');
+  const status = document.getElementById('status');
+  if (!synth) { playBtn.disabled = true; status.textContent = 'Your browser does not support read-aloud.'; return; }
+
+  // Break the article into speakable chunks (headings + paragraphs + list items), in order.
+  const blocks = [...document.querySelectorAll('#article > h2, #article > h3, #article > p, #article > ul > li, #article > .callout > p')];
+  let i = 0, playing = false;
+
+  function speakFrom(idx) {
+    synth.cancel();
+    if (idx >= blocks.length) { reset(); return; }
+    i = idx;
+    const el = blocks[i];
+    blocks.forEach((b) => b.classList.remove('speaking'));
+    el.classList.add('speaking');
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const u = new SpeechSynthesisUtterance(el.textContent.replace(/\s+/g, ' ').trim());
+    u.rate = 1.0; u.pitch = 1.0;
+    u.onend = () => { if (playing) speakFrom(i + 1); };
+    synth.speak(u);
+  }
+  function reset() {
+    playing = false; playBtn.textContent = '▶ Listen'; status.textContent = 'Uses your device\'s built-in voice.';
+    blocks.forEach((b) => b.classList.remove('speaking'));
+  }
+
+  playBtn.onclick = () => {
+    if (!playing) {
+      playing = true; playBtn.textContent = '⏸ Pause';
+      status.textContent = 'Reading aloud… tap any paragraph to jump there.';
+      if (synth.paused) synth.resume(); else speakFrom(i);
+    } else {
+      playing = false; playBtn.textContent = '▶ Listen'; status.textContent = 'Paused.';
+      synth.pause();
+    }
+  };
+  stopBtn.onclick = () => { synth.cancel(); i = 0; reset(); };
+  // Tap a paragraph to start listening from there.
+  blocks.forEach((b, idx) => { b.style.cursor = 'pointer'; b.onclick = () => { playing = true; playBtn.textContent = '⏸ Pause'; status.textContent = 'Reading aloud…'; speakFrom(idx); }; });
+  window.addEventListener('beforeunload', () => synth.cancel());
+})();
+</script>
+</body>
+</html>
