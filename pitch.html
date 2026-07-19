@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setu — Settlement for the Agent Economy · Partner Brief</title>
+<meta name="description" content="Feeless, instant settlement for machine-to-machine payments. Live, and looking for a first design partner.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M10 70 Q50 20 90 70' fill='none' stroke='%23b3702d' stroke-width='9' stroke-linecap='round'/><circle cx='10' cy='70' r='8' fill='%23b3702d'/><circle cx='90' cy='70' r='8' fill='%23b3702d'/></svg>">
+<style>
+  :root { --bg:#f7f5f0; --panel:#fffdf9; --ink:#211e19; --soft:#55504722; --muted:#6a6459; --line:#e5ded1; --accent:#b3702d; --good:#3c6e4f; --maxw:800px; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#131209; --panel:#1c1a13; --ink:#ece7db; --soft:#ded7c714; --muted:#9c9584; --line:#2c2920; --accent:#d99a4e; --good:#7fbf98; } }
+  :root[data-theme="light"] { --bg:#f7f5f0; --panel:#fffdf9; --ink:#211e19; --muted:#6a6459; --line:#e5ded1; --accent:#b3702d; }
+  :root[data-theme="dark"] { --bg:#131209; --panel:#1c1a13; --ink:#ece7db; --muted:#9c9584; --line:#2c2920; --accent:#d99a4e; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--ink); font-family:Georgia,'Times New Roman',serif; line-height:1.6; -webkit-font-smoothing:antialiased; padding:clamp(20px,4vw,60px) 20px; }
+  main { max-width:var(--maxw); margin:0 auto; }
+  .backlink { display:inline-block; margin-bottom:26px; font-size:14px; color:var(--accent); }
+  .eyebrow { font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin-bottom:14px; }
+  h1 { font-size:clamp(30px,5.5vw,50px); font-weight:400; line-height:1.12; }
+  h1 .dot { color:var(--accent); }
+  .deck { font-size:clamp(18px,2.6vw,22px); color:var(--muted); margin-top:16px; line-height:1.45; }
+  .rule { height:2px; background:var(--line); margin:30px 0; border:0; }
+  h2 { font-size:clamp(20px,3vw,25px); font-weight:400; margin:40px 0 6px; }
+  h2 .n { color:var(--accent); font-size:.7em; margin-right:10px; }
+  p { margin:12px 0; } .lead { font-size:18.5px; }
+  ul { margin:12px 0 12px 22px; } li { margin:8px 0; } li::marker { color:var(--accent); }
+  strong { font-weight:bold; } a { color:var(--accent); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:22px 0; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .stat b { display:block; font-size:26px; font-weight:400; color:var(--accent); }
+  .stat span { font-size:13px; color:var(--muted); }
+  .box { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:22px 26px; margin:26px 0; }
+  .box.accent { border-left:3px solid var(--accent); }
+  .box h2 { margin-top:0; }
+  table { width:100%; border-collapse:collapse; font-size:15.5px; margin:14px 0; display:block; overflow-x:auto; }
+  td { padding:10px 14px 10px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+  td:first-child { color:var(--muted); white-space:nowrap; padding-right:20px; }
+  .cta { text-align:center; margin:36px 0 8px; }
+  .cta a { display:inline-block; background:var(--accent); color:#fff; text-decoration:none; padding:13px 30px; border-radius:10px; font-size:17px; }
+  footer { margin-top:40px; padding-top:18px; border-top:2px solid var(--line); color:var(--muted); font-size:13px; }
+  @media print { body { background:#fff; color:#000; } .backlink { display:none; } }
+</style>
+</head>
+<body>
+<main>
+  <a class="backlink" href="/">← setu-mocha.vercel.app</a>
+
+  <div class="eyebrow">Design-partner brief · July 2026</div>
+  <h1>Setu<span class="dot">.</span> The settlement layer for the agent economy.</h1>
+  <p class="deck">Software agents are starting to buy and sell from each other — data, compute, answers — in
+  payments too small, too frequent, and too fast for cards or blockchains. Setu is a feeless, instant
+  settlement rail built for exactly that. It is live today, and we are looking for a first design partner.</p>
+
+  <hr class="rule">
+
+  <h2><span class="n">01</span>The problem</h2>
+  <p class="lead">Agent commerce breaks the assumptions every existing payment rail is built on.</p>
+  <p>An agent calling an API ten thousand times an hour needs to pay a tenth of a penny per call, instantly,
+  with no human approving each one. Card networks price and clear for £40 human purchases — the fees and
+  latency are fatal at that size and speed. Public blockchains add gas markets, volatility, and multi-second
+  finality. The result: the one thing the agent economy most needs — <strong>tiny, instant, programmatic
+  payments</strong> — is the thing today's rails do worst.</p>
+
+  <h2><span class="n">02</span>What Setu is</h2>
+  <p>A settlement engine that moves value between accounts in <strong>one network round trip</strong> — about
+  200&nbsp;milliseconds across continents — with <strong>no per-transaction fee, no blockchain, and no
+  token</strong>. Its defining feature for agents: <strong>spending limits enforced by the network itself</strong>.
+  A person signs one credential — "this agent may spend 10, at most 2 per payment, until Friday" — and the
+  settlement layer, not the merchant, guarantees it cannot be exceeded, double-spent, or used after it is
+  revoked.</p>
+  <p>Setu is <strong>infrastructure, not money</strong>. It moves claims on <em>your</em> settlement asset —
+  a regulated stablecoin, tokenised deposit, or closed-loop credit — so it slots beneath a regulated issuer
+  rather than trying to become one.</p>
+
+  <h2><span class="n">03</span>It is real, and you can see it</h2>
+  <div class="stats">
+    <div class="stat"><b>~200 ms</b><span>payment finality across four regions</span></div>
+    <div class="stat"><b>£0</b><span>per-transaction network fee</span></div>
+    <div class="stat"><b>3-of-4</b><span>signatures make a payment final; one node can fail or misbehave</span></div>
+    <div class="stat"><b>live</b><span>network, wallet, and a running agent economy</span></div>
+  </div>
+  <p>Not slideware. A four-region network runs now; a <a href="/">browser wallet</a> settles a real payment in
+  a few hundred milliseconds; a <a href="/economy.html">resident economy of agents</a> is paying each other for
+  services on it as you read this; and any agent can already reach it through the two protocols agents speak —
+  <strong>MCP</strong> and a live <strong>x402</strong> endpoint. Spending-limit enforcement, offline receipt
+  verification, and "spend money you just received" have all been measured and demonstrated.</p>
+
+  <h2><span class="n">04</span>Why now</h2>
+  <p>The category has just been validated by the people best placed to judge it: Mastercard launched Agent Pay
+  for Machines, Visa is building agent commerce, and Coinbase's x402 and Google's AP2 are becoming the agent
+  payment standards. That is the market telling you this is real. Setu's place in it is the one the incumbents
+  can't easily offer: an <strong>independent, self-hostable, feeless</strong> settlement rail you can run inside
+  your own ecosystem, not a toll road on someone else's network.</p>
+
+  <h2><span class="n">05</span>Who it's for</h2>
+  <ul>
+    <li><strong>API and data providers</strong> — charge per call, per row, per token, with no minimums and no card fees.</li>
+    <li><strong>Cloud and compute marketplaces</strong> — meter and settle machine usage continuously.</li>
+    <li><strong>Enterprises running agent fleets</strong> — give each agent a hard, auditable budget your finance team controls.</li>
+    <li><strong>Banks and payment institutions</strong> — the instant, named-validator settlement your tokenised-deposit rail actually wants, without a public chain.</li>
+  </ul>
+
+  <div class="box accent">
+    <h2>The ask</h2>
+    <p>One <strong>design partner</strong> for a bounded, closed-loop pilot. You bring a real use case and the
+    settlement asset (your credits, deposits, or stablecoin); we bring the rail, the integration, and the
+    engineering. A <strong>4–6 week pilot</strong> to prove feeless, instant, policy-controlled settlement on
+    a use case that matters to you — inside your ecosystem, on your terms.</p>
+    <p style="margin-bottom:0">What we want from it is simple: your honest answer to "would you use this in
+    production, and what would have to be true?"</p>
+  </div>
+
+  <h2><span class="n">06</span>Said plainly — the boundaries</h2>
+  <table>
+    <tr><td>Today</td><td>A working prototype on a test network with test credits. Not yet handling real money.</td></tr>
+    <tr><td>The asset</td><td>Setu settles claims on money issued by a regulated partner; it is not itself a currency or a token.</td></tr>
+    <tr><td>Not for</td><td>General smart contracts, or transactions needing escrow / delivery guarantees — Setu settles payments, cleanly and fast.</td></tr>
+    <tr><td>Next</td><td>Independent security review, and the pilot above, before any real-value use.</td></tr>
+  </table>
+  <p style="font-size:14.5px;color:var(--muted)">The full technical design, evidence, and every limitation are
+  in the <a href="/whitepaper.html">white paper</a> — written to be argued with, not just admired.</p>
+
+  <div class="cta"><a href="https://github.com/rainaajay/setu">See the code &amp; get in touch →</a></div>
+
+  <footer>
+    Setu · a consensusless settlement engine for prefunded agent payments · Ajay Raina ·
+    <a href="/">setu-mocha.vercel.app</a> · <a href="https://github.com/rainaajay/setu">github.com/rainaajay/setu</a>
+  </footer>
+</main>
+</body>
+</html>
