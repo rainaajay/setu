@@ -149,20 +149,32 @@ async function poll() {
     for (const tx of fresh.reverse()) {
       const row = document.createElement('div');
       row.className = 'tx';
-      const when = new Date(tx.at).toLocaleTimeString();
+      const named = tx.ref && tx.ref.indexOf('->') > -1;
+      const label = named ? tx.ref.replace('->', ' → ') : `${tx.from}… <span class="arrow">→</span> ${tx.to}…`;
       row.innerHTML =
-        `<div class="parties">${tx.from}… <span class="arrow">→</span> ${tx.to}…</div>` +
+        `<div class="parties">${label}</div>` +
         `<div class="amt">${tx.amount.toLocaleString()}</div>` +
-        `<div class="meta">${when}${tx.ref ? '' : ''}</div>` +
-        `<div class="ref">${tx.ref ? 'ref ' + tx.ref.slice(0, 8) : ''}</div>`;
+        `<div class="meta ago" data-at="${tx.at}">just now</div>` +
+        `<div class="ref">${tx.ref && !named ? 'ref ' + tx.ref.slice(0, 8) : ''}</div>`;
       feed.insertBefore(row, feed.firstChild);
     }
     while (feed.children.length > 40) feed.removeChild(feed.lastChild);
   }
+  tickAgo();
+}
+
+// Keep the "Xs ago" labels ticking so the feed always reads as live.
+function tickAgo() {
+  const now = Date.now();
+  document.querySelectorAll('.ago[data-at]').forEach((e) => {
+    const s = Math.max(0, Math.round((now - Number(e.dataset.at)) / 1000));
+    e.textContent = s < 60 ? s + 's ago' : Math.floor(s / 60) + 'm ' + (s % 60) + 's ago';
+  });
 }
 
 poll();
-setInterval(poll, 4000);
+setInterval(poll, 2500);
+setInterval(tickAgo, 1000);
 </script>
 </body>
 </html>

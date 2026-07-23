@@ -10,22 +10,23 @@ import { SetuWallet, MAINNET } from '../setu-pay/index.ts';
 
 const PORT = Number(process.env.PORT ?? 8080);
 const HOST = process.env.HOST ?? '127.0.0.1';
-const TICK_MS = Number(process.env.TICK_MS ?? 25_000);
-const SEED = 50; // Credits each agent is issued at genesis
+// One trade roughly every ~2 seconds, so the network always looks alive.
+const INTERVAL_MS = Number(process.env.INTERVAL_MS ?? 2000);
+const SEED = 60; // Credits each agent is issued at genesis
 
-// The resident population. Each offers a real service and consumes the next agent's output,
-// forming a closed value chain — so Credits circulate and total supply is conserved.
+// The resident population. Each offers a real micro-service at a price; over time each both
+// buys and sells, so Credits circulate and total supply stays conserved (fixed-supply story).
 const ROLES = [
-  { name: 'Oracle', service: 'price feed', color: '#b3702d' },
-  { name: 'FX Desk', service: 'currency conversion', color: '#3c6e4f' },
-  { name: 'Analyst', service: 'trade signals', color: '#2e5a7a' },
-  { name: 'Scribe', service: 'written reports', color: '#7a2e2e' },
-  { name: 'Monitor', service: 'risk alerts', color: '#5a4a7a' },
-  { name: 'Broker', service: 'order execution', color: '#8a6a1e' },
+  { name: 'Oracle', service: 'price feed', desc: 'publishes reference prices other agents rely on', price: 1, color: '#b3702d' },
+  { name: 'FX Desk', service: 'currency conversion', desc: 'converts values between currencies', price: 1, color: '#3c6e4f' },
+  { name: 'Analyst', service: 'trade signals', desc: 'turns raw data into buy/sell signals', price: 2, color: '#2e5a7a' },
+  { name: 'Scribe', service: 'written report', desc: 'writes up findings into a short report', price: 2, color: '#7a2e2e' },
+  { name: 'Monitor', service: 'risk alert', desc: 'watches positions and raises risk alerts', price: 1, color: '#5a4a7a' },
+  { name: 'Broker', service: 'order execution', desc: 'executes orders on behalf of others', price: 2, color: '#8a6a1e' },
 ];
 
 type Agent = {
-  name: string; service: string; color: string;
+  name: string; service: string; desc: string; price: number; color: string;
   wallet: SetuWallet; address: string;
   balance: number; sold: number; bought: number; revenue: number;
 };
@@ -34,17 +35,9 @@ const agents: Agent[] = [];
 const trades: { from: string; to: string; service: string; amount: number; at: number }[] = [];
 let totalTx = 0;
 let gdp = 0;
-let ticks = 0;
-let lastTickMs = 0;
+let lastTradeAt = 0;
 let booted = false;
-
-// The decision an agent makes each tick. RULE-BASED today: buy the next agent's service if
-// affordable. An LLM brain would replace this body with a Claude call ("given my balance,
-// role, and the market, what should I buy / what should I charge?") — same signature.
-function decide(buyer: Agent, seller: Agent): { buy: boolean; amount: number } {
-  const price = 1;
-  return { buy: buyer.balance >= price, amount: price };
-}
+const rand = <T>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 
 async function boot() {
   for (const r of ROLES) {
@@ -54,30 +47,34 @@ async function boot() {
   // Genesis issuance from the faucet (the testbed's fixed-supply Treasury stand-in).
   await Promise.all(agents.map((a) => a.wallet.faucet(SEED).catch(() => {})));
   booted = true;
-  process.stderr.write(`setu-economy: ${agents.length} agents funded ${SEED} each; tick ${TICK_MS}ms\n`);
+  process.stderr.write(`setu-economy: ${agents.length} agents funded ${SEED} each; ~${INTERVAL_MS}ms/trade\n`);
   loop();
+}
+
+// One trade at a time, on a short interval, so the network shows a steady live pulse rather
+// than a burst every half-minute. Each trade: a random agent buys a service it can afford
+// from another agent. Over time everyone both buys and sells, so supply stays conserved.
+// (Choosing buyer/seller/price is the seam an LLM "brain" would take over — same shape.)
+async function tradeOnce() {
+  const buyer = rand(agents.filter((a) => a.balance >= 1));
+  if (!buyer) return;
+  const options = agents.filter((a) => a !== buyer && buyer.balance >= a.price);
+  if (!options.length) return;
+  const seller = rand(options);
+  try {
+    await buyer.wallet.pay(seller.address, seller.price, `${buyer.name}->${seller.name}`);
+    buyer.balance -= seller.price; buyer.bought += 1;
+    seller.balance += seller.price; seller.sold += 1; seller.revenue += seller.price;
+    totalTx += 1; gdp += seller.price; lastTradeAt = Date.now();
+    trades.unshift({ from: buyer.name, to: seller.name, service: seller.service, amount: seller.price, at: lastTradeAt });
+    if (trades.length > 60) trades.pop();
+  } catch { /* transient network error — skip */ }
 }
 
 async function loop() {
   for (;;) {
-    ticks++;
-    const n = agents.length;
-    // Each agent buys the NEXT agent's service — a ring, so every agent both pays and earns.
-    await Promise.all(agents.map(async (buyer, i) => {
-      const seller = agents[(i + 1) % n];
-      const d = decide(buyer, seller);
-      if (!d.buy) return;
-      try {
-        await buyer.wallet.pay(seller.address, d.amount, `${buyer.name}->${seller.name}`);
-        buyer.balance -= d.amount; buyer.bought += 1;
-        seller.balance += d.amount; seller.sold += 1; seller.revenue += d.amount;
-        totalTx += 1; gdp += d.amount;
-        trades.unshift({ from: buyer.name, to: seller.name, service: seller.service, amount: d.amount, at: Date.now() });
-        if (trades.length > 40) trades.pop();
-      } catch { /* transient network error — skip this edge this tick */ }
-    }));
-    lastTickMs = Date.now();
-    await new Promise((r) => setTimeout(r, TICK_MS));
+    await tradeOnce();
+    await new Promise((r) => setTimeout(r, INTERVAL_MS + Math.floor(Math.random() * 900)));
   }
 }
 
@@ -92,9 +89,9 @@ const server = createServer((req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204, CORS).end(); return; }
   if (path === '/health') return json(res, 200, { ok: true, booted, ticks });
   if (path === '/state') return json(res, 200, {
-    booted, ticks, lastTickMs, tickMs: TICK_MS, network: 'setu-testnet', asset: 'Setu Credit',
+    booted, now: Date.now(), lastTradeAt, intervalMs: INTERVAL_MS, network: 'setu-testnet', asset: 'Setu Credit',
     totals: { transactions: totalTx, gdp, agents: agents.length, supply: agents.length * SEED },
-    agents: agents.map((a) => ({ name: a.name, service: a.service, color: a.color, address: a.address.slice(16, 24) + '…', balance: a.balance, sold: a.sold, bought: a.bought, revenue: a.revenue })),
+    agents: agents.map((a) => ({ name: a.name, service: a.service, desc: a.desc, price: a.price, color: a.color, address: a.address.slice(16, 24) + '…', balance: a.balance, sold: a.sold, bought: a.bought, revenue: a.revenue })),
     trades,
   });
   json(res, 404, { error: 'not found', try: ['/state', '/health'] });
