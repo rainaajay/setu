@@ -57,14 +57,19 @@
 <div class="pulse">
   <span><span class="live-dot"></span> <b id="last">connecting…</b></span>
   <span id="rate"></span>
+  <span id="brain"></span>
 </div>
 
 <div class="counters">
   <div class="counter"><b id="c-tx">—</b><span>payments settled, all-time</span></div>
   <div class="counter"><b id="c-min">—</b><span>in the last minute</span></div>
+  <div class="counter"><b id="c-agents">—</b><span>resident agents</span></div>
   <div class="counter"><b id="c-gdp">—</b><span>Credits moved (GDP)</span></div>
   <div class="counter"><b id="c-supply">—</b><span>Credit supply (fixed)</span></div>
 </div>
+
+<h2>What the agents are thinking</h2>
+<div class="feed" id="brainfeed" style="margin-bottom:24px"><div class="empty" id="brainempty">The brain is off right now — the agents trade on simple fixed rules. Switch it on (an AI key) and they start setting their own prices and hiring their own new agents.</div></div>
 
 <div class="join">
   <h3>What is this — and how do you take part?</h3>
@@ -111,8 +116,18 @@ async function poll() {
   catch { $('src').textContent = 'setu-economy.fly.dev (unreachable)'; return; }
 
   $('c-tx').textContent = state.totals.transactions.toLocaleString();
+  $('c-agents').textContent = state.totals.agents;
   $('c-gdp').textContent = state.totals.gdp.toLocaleString();
   $('c-supply').textContent = state.totals.supply.toLocaleString();
+
+  const b = state.brain || {};
+  $('brain').textContent = b.active ? `· 🧠 thinking with ${b.model}` : (b.armed ? '· 🧠 brain paused (budget reached)' : '· 🧠 brain off');
+  const bf = $('brainfeed');
+  if (state.thoughts && state.thoughts.length) {
+    bf.innerHTML = state.thoughts.slice(0, 12).map((t) => `
+      <div class="tx"><div class="who">🧠 <b>${t.agent}</b> ${t.text}</div>
+      <div class="ago">${agoText(ageOf(t.at))}</div></div>`).join('');
+  }
 
   $('agents').innerHTML = state.agents.map((a) => `
     <div class="agent">
