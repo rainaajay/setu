@@ -92,13 +92,26 @@
   can't easily offer: an <strong>independent, self-hostable, feeless</strong> settlement rail you can run inside
   your own ecosystem, not a toll road on someone else's network.</p>
 
-  <h2><span class="n">05</span>Who it's for</h2>
+  <h2><span class="n">05</span>Why Setu — and not the alternatives?</h2>
+  <p>You will be asked this in the first five minutes, so here is the straight answer — including where each
+  alternative is the better choice.</p>
+  <table>
+    <tr><td><strong>An internal database</strong></td><td>Fine when everything sits inside one company and you never need to prove a payment. But a database has no cryptographic receipt and no cross-party double-spend guarantee — <strong>Setu</strong> gives two parties who don't fully trust each other a payment that is provably final and cannot be quietly reversed.</td></tr>
+    <tr><td><strong>x402 + public stablecoins</strong></td><td>Right when you want public, on-chain settlement and accept chain fees and volatility. <strong>Setu</strong> wins when you need genuinely sub-cent payments at zero per-transaction fee, sub-second finality, and no public-chain exposure — settling off-chain, behind your own credit or a regulated stablecoin.</td></tr>
+    <tr><td><strong>Mastercard Agent Pay</strong></td><td>Right when you want the incumbent network, card acceptance, and their fraud and dispute machinery. <strong>Setu</strong> wins when you want to self-host or run a consortium, avoid card economics on tiny payments, enforce spending limits inside the settlement layer, and carry no chargeback exposure on completed digital services.</td></tr>
+    <tr><td><strong>Internal credits / points</strong></td><td>Fine for a closed loop you fully control. <strong>Setu</strong> gives that same closed loop but with cryptographic finality, portable proof-of-payment, and hard, network-enforced agent budgets — without you building the settlement engine.</td></tr>
+  </table>
+  <p>The specific edge, in one line: <strong>sub-cent economics, instant finality, and spending limits the network itself enforces</strong> (the piece nobody else has), plus self-hosting or consortium control, no chargeback liability, and machine-speed repeated payment chains — measured, not promised.</p>
+  <p style="font-size:14.5px;color:var(--muted)"><strong>Where Setu is the wrong choice, plainly:</strong> if you need public permissionless settlement, real money with no regulated partner, general smart contracts, or consumer chargeback protection — use one of the above instead.</p>
+
+  <h2><span class="n">06</span>Who it's for</h2>
   <ul>
     <li><strong>API and data providers</strong> — charge per call, per row, per token, with no minimums and no card fees.</li>
     <li><strong>Cloud and compute marketplaces</strong> — meter and settle machine usage continuously.</li>
     <li><strong>Enterprises running agent fleets</strong> — give each agent a hard, auditable budget your finance team controls.</li>
     <li><strong>Banks and payment institutions</strong> — the instant, named-validator settlement your tokenised-deposit rail actually wants, without a public chain.</li>
   </ul>
+  <p><strong>How Setu earns</strong> — stated plainly, because it gets asked: not a cut of each payment, which would defeat the whole point. The model is a subscription for the SDK and hosted service, licensed private and consortium networks, and operator membership. You pay to <em>run</em> the rail, not per transaction across it.</p>
 
   <div class="box accent">
     <h2>The ask</h2>
@@ -110,7 +123,7 @@
     production, and what would have to be true?"</p>
   </div>
 
-  <h2><span class="n">06</span>Said plainly — the boundaries</h2>
+  <h2><span class="n">07</span>Said plainly — the boundaries</h2>
   <table>
     <tr><td>Today</td><td>A working prototype on a test network with test credits. Not yet handling real money.</td></tr>
     <tr><td>The asset</td><td>Setu settles claims on money issued by a regulated partner; it is not itself a currency or a token.</td></tr>
