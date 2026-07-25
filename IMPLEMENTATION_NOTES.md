@@ -41,6 +41,36 @@ had narrative *demos* but **no assertion-based tests**. The brief mandates this 
 **Not changed:** no protocol code, no cryptographic primitives, no deployed services, no network
 state. The test suite is additive.
 
+## Increment 2 — 2026-07-24: the definitive end-to-end agent-purchase journey (§6/§7/§45)
+
+Turned the scattered demos into one **asserted** end-to-end flow, implementing the
+service-commerce pieces it needs as real modules (not test scaffolding):
+
+**Added (real application code, strip-mode-safe)**
+- `src/service/quote.ts` — signed, machine-readable `Quote` (§13): binds price to a task hash
+  and recipient, with expiry; `verifyQuote` checks signature + expiry.
+- `src/service/service.ts` — `SetuService` (§11/§14/§15): issues quotes, and on redemption
+  **verifies settlement server-side** against the committee keys before delivering; tracks
+  **Settlement** and **Fulfilment** as separate states; single-use per quote.
+- `src/service/registry.ts` — `ServiceRegistry` + `discover()` (§11/§12): structured discovery
+  by capability / max price / region.
+- `src/agent/purchase.ts` — `evaluatePurchase()` + `PurchaseDecision` (§5/§30): the agent's
+  deterministic client-side pre-check (the authorities remain the real enforcer, §6).
+- `src/audit.ts` — append-only `AuditLog` (§44).
+- `test/e2e.test.ts` — **5 asserted E2E tests**: the full happy journey (fund → agent →
+  delegate → discover → signed quote → policy decision → settle through quorum under the
+  delegation → server-side receipt verification → fulfil → assert balance/budget → assert the
+  ordered audit timeline → revoke → confirm further spend refused); plus denied-by-per-payment,
+  denied-by-remaining-budget, replay-refused, and wrong-recipient-refused.
+
+**Result:** `npm test` → **17 passing** (12 protocol + 5 E2E), ~290 ms. No protocol changes; the
+new modules sit above the tested settlement/delegation core.
+
+**Note:** these run against in-process authorities for determinism. A single *guided UI* over the
+live network (one page walking a human through the same journey with a human timeline + technical
+receipt) is the natural follow, together with migrating the live gateway to the signed `Quote`
+object. The live gateway still uses the simpler invoice+ref form.
+
 ## Material deviations from a literal reading of the brief (with reasons)
 
 1. **No Postgres/Prisma data model (§43).** The existing persistence is deliberately dependency-
