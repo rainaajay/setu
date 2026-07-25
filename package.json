@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Post-blockchain settlement core: consensusless BFT payments (FastPay model), two-plane architecture. See SPEC.md.",
   "scripts": {
+    "test": "node --test \"test/**/*.test.ts\"",
     "demo": "node src/demo.ts",
     "demo:live": "node src/demo-live.ts",
     "demo:trust": "node src/demo-trust.ts",
