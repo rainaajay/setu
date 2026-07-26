@@ -21,9 +21,12 @@ node src/wallet.ts balance me          # as seen by each of the 4 authorities
 
 Each authority app runs exactly one machine (an authority is a single logical signer —
 Fly's default 2-machine HA split one authority's state in two and broke quorum funding;
-`fly scale count 1` is part of the deploy procedure). State lives on the machine's
-ephemeral disk: it survives process restarts, not machine replacement. Redeploy:
-`flyctl deploy . -c deploy/auth-N/fly.toml --dockerfile Dockerfile --remote-only`.
+`fly scale count 1` is part of the deploy procedure). **State is durable**: each authority
+mounts a Fly volume at `/data` (`SETU_STATE_DIR=/data`) and writes it crash-safely (atomic
+temp+rename with a `.bak` generation), so state survives process *and* machine restarts —
+verified. Redeploy: `flyctl deploy . -c deploy/auth-N/fly.toml --dockerfile Dockerfile
+--remote-only`. First-time volume setup: `flyctl volumes create setu_data --app setu-auth-N
+--region <r> --size 1`.
 
 ## Use it from an AI agent (MCP)
 

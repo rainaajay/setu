@@ -6,6 +6,11 @@ primary_region = "sin"
 
 [env]
   SETU_AUTHORITY = "auth-4"
+  SETU_STATE_DIR = "/data"
+
+[mounts]
+  source = "setu_data"
+  destination = "/data"
 
 [http_service]
   internal_port = 8080

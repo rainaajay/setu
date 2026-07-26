@@ -34,10 +34,13 @@ restart recovery from disk.
 **Real but not yet test-covered** (`implemented-unreviewed`): the MCP server, the setu-pay SDK,
 authority key handling (Fly secrets, not HSM).
 
+**Durable persistence** (`implemented-tested`): authorities write state with crash-safe atomic
+writes + a backup generation, load resiliently, and run on durable Fly volumes — verified that
+state survives a machine restart. (No multi-node failover / snapshot policy yet.)
+
 **Partial** (works, with stated gaps): the x402-style gateway (shape-compatible, not conformance-tested),
-production persistence (ephemeral `/tmp`, no durable volume/backup), the signed-quote and
-settlement/fulfilment models, the A2A card (schema-shaped), issuance/reconciliation, and benchmarks
-(laptop + live WAN, not production-scale).
+the A2A card (schema-shaped), issuance/reconciliation, and benchmarks (laptop + live WAN, not
+production-scale).
 
 **Planned** (not built): policy simulation, principal-approval workflow, service registry &
 discovery, OpenAI tools & review bridge, authority rotation/governance, operator admin, status &

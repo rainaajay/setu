@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, renameSync, copyFileSync } from 'node:fs';
 import { canonical, generateKeyPair, sign, verify, type KeyPair } from './crypto.ts';
 import type {
   Certificate,
@@ -81,25 +81,45 @@ export class Authority {
     this.name = name;
     this.keys = keys ?? generateKeyPair();
     this.stateFile = stateFile;
-    if (stateFile && existsSync(stateFile)) {
-      const saved = JSON.parse(readFileSync(stateFile, 'utf8')) as {
-        accounts: Record<string, AccountState>;
-        delegations?: Record<string, DelegationState>;
-      };
-      this.accounts = new Map(Object.entries(saved.accounts));
-      if (saved.delegations) this.delegations = new Map(Object.entries(saved.delegations));
+    if (stateFile) {
+      const saved = this.loadState(stateFile);
+      if (saved) {
+        this.accounts = new Map(Object.entries(saved.accounts));
+        if (saved.delegations) this.delegations = new Map(Object.entries(saved.delegations));
+      }
     }
   }
 
+  // Resilient load: try the primary file, then the one-generation backup. Fail loud if state
+  // is present but unreadable — an authority must never silently boot with forgotten balances
+  // or a dropped pending lock (that would be a safety hole).
+  private loadState(file: string): { accounts: Record<string, AccountState>; delegations?: Record<string, DelegationState> } | null {
+    for (const f of [file, file + '.bak']) {
+      if (!existsSync(f)) continue;
+      try {
+        return JSON.parse(readFileSync(f, 'utf8'));
+      } catch (e) {
+        process.stderr.write(`[authority ${this.name}] unreadable state ${f}: ${(e as Error).message}\n`);
+      }
+    }
+    if (existsSync(file) || existsSync(file + '.bak'))
+      throw new Error(`authority ${this.name}: state file(s) present but unreadable — refusing to start`);
+    return null;
+  }
+
+  // Crash-safe atomic write: serialise to a temp file, back up the current good copy, then
+  // rename the temp over the primary (an atomic filesystem operation). An interrupted write
+  // can therefore never leave a half-written primary — the previous state stays intact.
   private persist(): void {
     if (!this.stateFile) return;
-    writeFileSync(
-      this.stateFile,
-      JSON.stringify({
-        accounts: Object.fromEntries(this.accounts),
-        delegations: Object.fromEntries(this.delegations),
-      }),
-    );
+    const data = JSON.stringify({
+      accounts: Object.fromEntries(this.accounts),
+      delegations: Object.fromEntries(this.delegations),
+    });
+    const tmp = this.stateFile + '.tmp';
+    writeFileSync(tmp, data);
+    if (existsSync(this.stateFile)) copyFileSync(this.stateFile, this.stateFile + '.bak');
+    renameSync(tmp, this.stateFile);
   }
 
   delegationInfo(id: string): { total: number; spent: number; nextSeq: number; revoked: boolean } | null {

@@ -71,6 +71,37 @@ live network (one page walking a human through the same journey with a human tim
 receipt) is the natural follow, together with migrating the live gateway to the signed `Quote`
 object. The live gateway still uses the simpler invoice+ref form.
 
+## Increment 3 — 2026-07-26: durable persistence + crash-safe recovery (§20)
+
+Hardened the authority's state handling and made the live deployment durable.
+
+**Changed**
+- `src/authority.ts` — **crash-safe atomic persistence**: serialise to a `.tmp` file, copy the
+  current good copy to `.bak`, then `rename` the temp over the primary (atomic on the filesystem).
+  An interrupted write can no longer leave a half-written primary. **Resilient load**: try the
+  primary, then the `.bak`; if state is present but *all* copies are unreadable, **refuse to
+  start** rather than silently boot with forgotten balances or a dropped pending lock (a safety
+  hole). No protocol logic changed.
+- `deploy/auth-{1..4}/fly.toml` — each authority now mounts a **durable Fly volume** at `/data`
+  with `SETU_STATE_DIR=/data`. Volumes created per region; authorities redeployed and rescaled to
+  one machine each.
+
+**Added tests** — `test/persistence.test.ts` (5): atomic-write integrity + backup generation;
+corrupt-primary recovers from the backup; all-copies-unreadable → refuse to start; **the pending
+lock survives a restart** so a conflicting order is still refused; a **lagging authority catches
+up** by applying a certificate whose order it never saw.
+
+**Verified live:** funded a probe on `setu-auth-1`, restarted the machine, and confirmed the
+balance was read back from the volume — **state survives machine restart** (was ephemeral `/tmp`
+before). `npm test` → **22 passing** (12 protocol + 5 E2E + 5 persistence).
+
+**One-time migration effect:** the authorities started on fresh (empty) volumes, so prior
+ephemeral balances reset once; the resident-economy service was restarted to re-seed its agents.
+Because volumes now persist, **future redeploys keep state** rather than resetting it.
+
+**Remaining for full §20:** volume snapshot/backup policy and documented RPO/RTO targets;
+multi-authority partition/failover integration tests.
+
 ## Material deviations from a literal reading of the brief (with reasons)
 
 1. **No Postgres/Prisma data model (§43).** The existing persistence is deliberately dependency-
