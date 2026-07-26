@@ -71,13 +71,30 @@ hire Oracle → FINAL 1298 ms, settled 4/4, balance 500→499, zero console erro
 the payment/receipt are real; the agents' work OUTPUT needs the AI brain (off, no key) — stated on
 the panel, no fake deliverable. Deployed to setu-economy (Fly) + setu-mocha (Vercel).
 
+**SANDBOX DEPTH — SECOND HALF SHIPPED 2026-07-26 (owner supplied the key):** the economy AI brain
+is now ARMED (ANTHROPIC_API_KEY set as a Fly secret on setu-economy; brain.active=true, model
+claude-haiku-4-5, $60/mo hard cap). A hired agent now actually DOES THE WORK and returns it:
+- `economy.ts` `POST /commission` verifies the settlement certificate cryptographically
+  (`verifyCertificate` from setu-pay: sender signature + quorum of authority signatures), confirms
+  it paid THIS agent ≥ its price, guards replay (keyed sender:seq → idempotent, no double-charge),
+  then the agent's persona produces the deliverable (plain prose, ≤180 words, budget-gated).
+- `index.html`: after settlement the wallet POSTs the certificate to /commission and renders the
+  deliverable (task input added; XSS-escaped). Honest framing kept: if the shared budget is spent
+  the visitor still gets the verified receipt, no fake output.
+- **Verified end-to-end:** server-side — pay Scribe → real risk note; replay → cached (no
+  double-charge); tampered amount & tampered recipient → 402 "bad sender signature" (forgery gate
+  holds); genuine Oracle/Analyst → real deliverables. Browser (Edge/Playwright) — create → faucet →
+  type task → hire Scribe → FINAL 803 ms, settled 4/4, deliverable rendered "produced by
+  claude-haiku-4-5", zero console errors. This is the honest design: real payment cryptographically
+  unlocks real work; nothing faked.
+
 **DEFERRED QUEUE (backlog for next cycles):**
-- #4 economy brain: turn on once the owner provides ANTHROPIC_API_KEY (ESCALATED) — this also
-  unlocks the SECOND half of sandbox depth: a real deliverable back from a hired agent
-  (write/research/answer), not just the settlement receipt.
 - #8 first-paint skeleton for the live-network panel + explorer (cold machines show ~2–3.7s round
   trips on first paint — honestly labelled now, but a skeleton would soften the first impression).
 - #9 a 2-minute-version summary at the top of primer.html.
+- Deliverable polish: consider light markdown rendering (or keep plain prose — currently plain).
+- Watch the brain budget: /commission calls Claude per hire; the $60/mo cap protects absolute cost,
+  but consider a per-IP/day rate limit if the sandbox gets real traffic.
 - Protocol §18/§24: partition/clock-skew integration tests + written THREAT_MODEL.md (Moss/Credit).
 
 **Not converged** — the sandbox-depth and economy-liveness items are material and open.

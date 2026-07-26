@@ -5,8 +5,8 @@
 //
 // Runs as a service: a market loop every TICK_MS, plus GET /state, /health (CORS) for the
 // public dashboard. Deploy target: Fly (setu-economy). Test units == Setu Credits.
-import { createServer, type ServerResponse } from 'node:http';
-import { SetuWallet, MAINNET } from '../setu-pay/index.ts';
+import { createServer, type ServerResponse, type IncomingMessage } from 'node:http';
+import { SetuWallet, MAINNET, verifyCertificate } from '../setu-pay/index.ts';
 
 const PORT = Number(process.env.PORT ?? 8080);
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -51,6 +51,9 @@ let booted = false;
 const INITIAL_SUPPLY = ROLES.length * SEED; // fixed; spawns move existing Credits, don't mint
 const thoughts: { agent: string; text: string; at: number }[] = [];
 let spentUsd = 0, cogCalls = 0;
+// One paid commission -> one deliverable. Keyed by sender:seq so re-requesting the same payment
+// returns the same work and never double-charges the AI budget.
+const delivered = new Map<string, unknown>();
 const rand = <T>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 const brainKey = () => process.env.ANTHROPIC_API_KEY || process.env.SETU_ANTHROPIC_KEY || '';
 const brainOn = () => !!brainKey() && spentUsd < MONTHLY_BUDGET_USD;
@@ -69,6 +72,12 @@ async function boot() {
   for (const r of ROLES) agents.push(await makeAgent(r, SEED));
   // Genesis issuance from the faucet (the testbed's fixed-supply Treasury stand-in).
   await Promise.all(agents.map((a) => a.wallet.faucet(SEED).catch(() => {})));
+  // Pre-cache the committee public keys so /commission can verify certificates without a fetch
+  // per request (verifyCertificate falls back to a lazy fetch if this fails).
+  try {
+    const info = await (await fetch(MAINNET.authorities[0] + '/committee', { signal: AbortSignal.timeout(8000) })).json() as { publicKeys?: string[] };
+    if (Array.isArray(info.publicKeys)) MAINNET.publicKeys = info.publicKeys;
+  } catch { /* verifyCertificate will fetch lazily */ }
   booted = true;
   process.stderr.write(`setu-economy: ${agents.length} agents funded ${SEED} each; ~${INTERVAL_MS}ms/trade; brain ${brainKey() ? 'ARMED' : 'off (no key)'}\n`);
   loop();
@@ -172,15 +181,69 @@ async function loop() {
   }
 }
 
-const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS' };
+const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type' };
 function json(res: ServerResponse, code: number, body: unknown) {
   res.writeHead(code, { 'content-type': 'application/json', ...CORS });
   res.end(JSON.stringify(body));
 }
 
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve) => {
+    let d = ''; req.on('data', (c) => { d += c; if (d.length > 200_000) req.destroy(); });
+    req.on('end', () => resolve(d)); req.on('error', () => resolve(''));
+  });
+}
+
+// A visitor's browser wallet paid a resident agent on the real network. Verify that payment
+// cryptographically (sender signature + quorum of authority signatures), confirm it paid THIS
+// agent at least its price, then have the agent actually do the work. Real payment unlocks real
+// output — no trust, no fake deliverable. Idempotent per payment; brain-budget-capped.
+async function handleCommission(req: IncomingMessage, res: ServerResponse) {
+  let body: { certificate?: any; task?: string };
+  try { body = JSON.parse((await readBody(req)) || '{}'); } catch { return json(res, 400, { ok: false, error: 'bad json' }); }
+  const certificate = body.certificate;
+  if (!certificate || !certificate.order) return json(res, 400, { ok: false, error: 'missing certificate' });
+  const order = certificate.order;
+  const key = `${order.sender}:${order.seq}`;
+  const cached = delivered.get(key);
+  if (cached) return json(res, 200, { ...(cached as object), cached: true });
+
+  const v = await verifyCertificate(certificate, MAINNET);
+  if (!v.valid) return json(res, 402, { ok: false, error: 'payment not verified: ' + v.error });
+  const agent = agents.find((a) => a.address === order.recipient);
+  if (!agent) return json(res, 404, { ok: false, error: 'the recipient is not a resident agent' });
+  if (Number(order.amount) < agent.price) return json(res, 402, { ok: false, error: `underpaid: ${order.amount} < ${agent.price} Cr for ${agent.name}` });
+
+  let deliverable: { mode: string; model?: string; text: string };
+  if (brainOn()) {
+    const system = `You are ${agent.name}, an autonomous ${agent.service} agent in the Setu machine economy. A client just paid you ${order.amount} Credits (settlement cryptographically verified) for your service: ${agent.desc}. Deliver genuinely useful, concrete work. No preamble, no "as an AI", no restating the request. Write in plain prose — no markdown, no headings, no asterisks or bullet symbols. Output ONLY the deliverable, under 180 words.`;
+    const ask = (typeof body.task === 'string' && body.task.trim())
+      ? `The client's request: ${body.task.slice(0, 500)}`
+      : `No specifics given — produce a strong, representative ${agent.service}.`;
+    const text = await callClaude(system, ask, 500);
+    deliverable = text
+      ? { mode: 'ai', model: MODEL, text }
+      : { mode: 'unavailable', text: `${agent.name} received your payment but is busy right now — request the deliverable again in a moment.` };
+    if (text) {
+      // The visitor's real payment landed on this agent's on-network account; reflect it in the
+      // economy so the agent can spend it, and show the commission in the live feed.
+      agent.balance += Number(order.amount); agent.sold += 1; agent.revenue += Number(order.amount);
+      totalTx += 1; gdp += Number(order.amount); lastTradeAt = Date.now();
+      trades.unshift({ from: 'a visitor', to: agent.name, service: agent.service, amount: Number(order.amount), at: lastTradeAt });
+      if (trades.length > 60) trades.pop();
+    }
+  } else {
+    deliverable = { mode: 'unavailable', text: `${agent.name} received your ${order.amount} Credits (payment verified). Its AI brain is off right now (monthly budget reached or no key set), so there is no written deliverable this time.` };
+  }
+  const payload = { ok: true, agent: { name: agent.name, service: agent.service }, paid: Number(order.amount), deliverable };
+  if (deliverable.mode === 'ai') delivered.set(key, payload); // cache only real output, so failures can retry
+  json(res, 200, payload);
+}
+
 const server = createServer((req, res) => {
   const path = (req.url ?? '/').split('?')[0];
   if (req.method === 'OPTIONS') { res.writeHead(204, CORS).end(); return; }
+  if (path === '/commission' && req.method === 'POST') { handleCommission(req, res); return; }
   if (path === '/health') return json(res, 200, { ok: true, booted, ticks });
   if (path === '/state') return json(res, 200, {
     booted, now: Date.now(), lastTradeAt, intervalMs: INTERVAL_MS, network: 'setu-testnet', asset: 'Setu Credit',
