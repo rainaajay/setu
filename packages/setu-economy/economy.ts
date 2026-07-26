@@ -54,6 +54,22 @@ let spentUsd = 0, cogCalls = 0;
 // One paid commission -> one deliverable. Keyed by sender:seq so re-requesting the same payment
 // returns the same work and never double-charges the AI budget.
 const delivered = new Map<string, unknown>();
+
+// Abuse guard for the paid deliverable path. The faucet is open, so without this one actor could
+// mint test Credits and burn the shared AI budget. The $/month cap (brainOn) is the absolute
+// backstop; these daily limits stop a single source monopolising it. Env-tunable.
+const COMMISSIONS_PER_IP_DAY = Number(process.env.COMMISSIONS_PER_IP_DAY ?? 15);
+const COMMISSIONS_GLOBAL_DAY = Number(process.env.COMMISSIONS_GLOBAL_DAY ?? 300);
+let rateDay = '';
+let globalDayCount = 0;
+const ipDayCount = new Map<string, number>();
+function rateGate(ip: string): { ok: true } | { ok: false; error: string } {
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== rateDay) { rateDay = today; globalDayCount = 0; ipDayCount.clear(); }
+  if (globalDayCount >= COMMISSIONS_GLOBAL_DAY) return { ok: false, error: 'the shared daily deliverable limit for this public demo has been reached — payments still settle; deliverables resume tomorrow.' };
+  if ((ipDayCount.get(ip) ?? 0) >= COMMISSIONS_PER_IP_DAY) return { ok: false, error: `you have reached today's limit of ${COMMISSIONS_PER_IP_DAY} deliverables from this demo — your payments still settle for real; deliverables resume tomorrow.` };
+  return { ok: true };
+}
 const rand = <T>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 const brainKey = () => process.env.ANTHROPIC_API_KEY || process.env.SETU_ANTHROPIC_KEY || '';
 const brainOn = () => !!brainKey() && spentUsd < MONTHLY_BUDGET_USD;
@@ -216,6 +232,9 @@ async function handleCommission(req: IncomingMessage, res: ServerResponse) {
 
   let deliverable: { mode: string; model?: string; text: string };
   if (brainOn()) {
+    const ip = String(req.headers['fly-client-ip'] || String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown');
+    const gate = rateGate(ip);
+    if (!gate.ok) return json(res, 429, { ok: true, agent: { name: agent.name, service: agent.service }, paid: Number(order.amount), deliverable: { mode: 'rate-limited', text: gate.error } });
     const system = `You are ${agent.name}, an autonomous ${agent.service} agent in the Setu machine economy. A client just paid you ${order.amount} Credits (settlement cryptographically verified) for your service: ${agent.desc}. Deliver genuinely useful, concrete work. No preamble, no "as an AI", no restating the request. Write in plain prose — no markdown, no headings, no asterisks or bullet symbols. Output ONLY the deliverable, under 180 words.`;
     const ask = (typeof body.task === 'string' && body.task.trim())
       ? `The client's request: ${body.task.slice(0, 500)}`
@@ -225,6 +244,8 @@ async function handleCommission(req: IncomingMessage, res: ServerResponse) {
       ? { mode: 'ai', model: MODEL, text }
       : { mode: 'unavailable', text: `${agent.name} received your payment but is busy right now — request the deliverable again in a moment.` };
     if (text) {
+      // Count only real (paid-for) deliverables against the daily limits.
+      ipDayCount.set(ip, (ipDayCount.get(ip) ?? 0) + 1); globalDayCount += 1;
       // The visitor's real payment landed on this agent's on-network account; reflect it in the
       // economy so the agent can spend it, and show the commission in the live feed.
       agent.balance += Number(order.amount); agent.sold += 1; agent.revenue += Number(order.amount);

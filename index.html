@@ -383,7 +383,7 @@
             if (!out.ok) { del.innerHTML = '<b>' + esc(name) + '</b>: ' + esc(out.error || 'could not deliver'); return; }
             const d = out.deliverable || {};
             const head = '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">' + esc(name) + ' &middot; ' + esc(out.agent.service) +
-              ' &middot; paid ' + out.paid + ' Cr' + (d.mode === 'ai' ? ' &middot; produced by ' + esc(d.model) : ' &middot; brain off') + '</div>';
+              ' &middot; paid ' + out.paid + ' Cr' + (d.mode === 'ai' ? ' &middot; produced by ' + esc(d.model) : d.mode === 'rate-limited' ? ' &middot; daily demo limit' : ' &middot; brain off') + '</div>';
             del.innerHTML = head + '<div style="white-space:pre-wrap;font-size:14px;line-height:1.5">' + esc(d.text || '(no output)') + '</div>';
             log(d.mode === 'ai' ? name + ' delivered.' : name + ' was paid; ' + name + ' could not produce output right now.');
             setTimeout(loadMarket, 1500);

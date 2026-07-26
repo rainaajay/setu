@@ -88,13 +88,23 @@ claude-haiku-4-5, $60/mo hard cap). A hired agent now actually DOES THE WORK and
   claude-haiku-4-5", zero console errors. This is the honest design: real payment cryptographically
   unlocks real work; nothing faked.
 
+**ABUSE GUARD SHIPPED 2026-07-26:** the open faucet + the now-live paid brain meant one actor could
+mint test Credits and burn the shared AI budget. Added daily rate limits to `/commission` in
+`economy.ts`: `COMMISSIONS_PER_IP_DAY` (default 15, via fly-client-ip / x-forwarded-for) and
+`COMMISSIONS_GLOBAL_DAY` (default 300), resetting on UTC date; only real (paid-for) deliverables
+count; cached replays and rejects do not. Over-limit returns an honest message ("payments still
+settle; deliverables resume tomorrow") and the wallet labels it "daily demo limit". The $60/mo
+brainOn() cap remains the absolute backstop. **Verified live:** temporarily set the per-IP limit to
+2 → calls 1–2 delivered, call 3 rate-limited; restored to 15.
+
 **DEFERRED QUEUE (backlog for next cycles):**
 - #8 first-paint skeleton for the live-network panel + explorer (cold machines show ~2–3.7s round
   trips on first paint — honestly labelled now, but a skeleton would soften the first impression).
 - #9 a 2-minute-version summary at the top of primer.html.
 - Deliverable polish: consider light markdown rendering (or keep plain prose — currently plain).
-- Watch the brain budget: /commission calls Claude per hire; the $60/mo cap protects absolute cost,
-  but consider a per-IP/day rate limit if the sandbox gets real traffic.
+- Fairness nicety: a visitor over the daily limit still pays before being told — consider a cheap
+  pre-check endpoint so the wallet can warn before charging (amounts are free test Credits, so low
+  priority).
 - Protocol §18/§24: partition/clock-skew integration tests + written THREAT_MODEL.md (Moss/Credit).
 
 **Not converged** — the sandbox-depth and economy-liveness items are material and open.
