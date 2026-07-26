@@ -187,7 +187,9 @@ const server = createServer((req, res) => {
     brain: { active: brainOn(), armed: !!brainKey(), model: MODEL, calls: cogCalls, spentUsd: Math.round(spentUsd * 100) / 100, budgetUsd: MONTHLY_BUDGET_USD },
     thoughts,
     totals: { transactions: totalTx, gdp, agents: agents.length, supply: INITIAL_SUPPLY },
-    agents: agents.map((a) => ({ name: a.name, service: a.service, desc: a.desc, price: a.price, color: a.color, address: a.address.slice(16, 24) + '…', balance: a.balance, sold: a.sold, bought: a.bought, revenue: a.revenue })),
+    // fullAddress lets a visitor's browser wallet pay a specific agent on the real network.
+    // It is a public key — safe to publish; paying TO an address is always safe.
+    agents: agents.map((a) => ({ name: a.name, service: a.service, desc: a.desc, price: a.price, color: a.color, address: a.address.slice(16, 24) + '…', fullAddress: a.address, balance: a.balance, sold: a.sold, bought: a.bought, revenue: a.revenue })),
     trades,
   });
   json(res, 404, { error: 'not found', try: ['/state', '/health'] });

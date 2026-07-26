@@ -205,6 +205,15 @@
         <button id="w-pay" class="wbtn">pay</button>
       </div>
       <p id="w-log" style="margin-top:10px;font-size:13.5px;color:var(--muted)"></p>
+      <div id="w-market" style="margin-top:18px;border-top:1px solid var(--line);padding-top:14px">
+        <p style="font-size:14px;margin-bottom:4px"><strong>Find &amp; pay a resident agent</strong></p>
+        <p style="font-size:12.5px;color:var(--muted)">These agents trade with each other on this
+        same network every couple of seconds — a market that is already running. Pay one and the
+        transfer settles for real and appears in the <a href="/explorer.html">explorer</a>. Their
+        work output is produced by an AI brain that is currently off (no API key), so today you get
+        a real settlement receipt, not a deliverable.</p>
+        <div id="w-agents" style="margin-top:12px;display:grid;gap:8px"></div>
+      </div>
     </div>
     <p id="w-unsupported" style="display:none;color:var(--muted)">This browser does not support Ed25519 in WebCrypto — try a current Chrome, Safari or Firefox.</p>
   </div>
@@ -286,45 +295,91 @@
         : `500 test Credits minted on ${ok}/4 authorities (the rest are unreachable and will catch up).`);
     }
 
+    // Sign an order, collect a quorum certificate, and settle it — the real protocol path,
+    // shared by the manual "pay" box and the resident-agent marketplace below.
+    async function settlePayment(recipient, amount) {
+      const views = (await accountViews()).filter(Boolean);
+      if (!views.length) return { ok: false, error: 'network unreachable — try again in a moment.' };
+      const seq = Math.max(...views.map((v) => v.nextSeq));
+      const order = { sender: address, recipient, amount, seq };
+      const senderSignature = b64(await crypto.subtle.sign('Ed25519', keys.privateKey, new TextEncoder().encode(canonical(order))));
+      const t0 = performance.now();
+      const responses = await Promise.all(AUTH.map(async (url) => {
+        try {
+          const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ type: 'order', signedOrder: { order, senderSignature } }), signal: AbortSignal.timeout(8000) });
+          return await r.json();
+        } catch { return { ok: false, error: 'unreachable' }; }
+      }));
+      const sigs = responses.filter((r) => r.ok).map((r) => r.signature);
+      if (sigs.length < QUORUM) return { ok: false, error: 'no quorum: ' + responses.map((r) => r.error ?? 'ok').join('; ') };
+      const certificate = { order, senderSignature, authoritySignatures: sigs.slice(0, QUORUM) };
+      const ms = performance.now() - t0;
+      const settles = await Promise.all(AUTH.map((url) => fetch(url, { method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ type: 'certificate', certificate }) }).then((r) => r.json()).catch(() => ({ ok: false }))));
+      return { ok: true, ms, settled: settles.filter((s) => s.ok).length, certificate };
+    }
+
     async function pay() {
       const recipient = $('w-to').value.trim();
       const amount = Number($('w-amt').value);
       if (!recipient || !Number.isInteger(amount) || amount <= 0) { log('enter a recipient address and a whole-number amount.'); return; }
       log('signing and broadcasting…');
       try {
-        const views = (await accountViews()).filter(Boolean);
-        const seq = Math.max(...views.map((v) => v.nextSeq));
-        const order = { sender: address, recipient, amount, seq };
-        const senderSignature = b64(await crypto.subtle.sign('Ed25519', keys.privateKey, new TextEncoder().encode(canonical(order))));
-        const t0 = performance.now();
-        const responses = await Promise.all(AUTH.map(async (url) => {
-          try {
-            const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ type: 'order', signedOrder: { order, senderSignature } }), signal: AbortSignal.timeout(8000) });
-            return await r.json();
-          } catch { return { ok: false, error: 'unreachable' }; }
-        }));
-        const sigs = responses.filter((r) => r.ok).map((r) => r.signature);
-        if (sigs.length < QUORUM) { log('no quorum: ' + responses.map((r) => r.error ?? 'ok').join('; ')); return; }
-        const certificate = { order, senderSignature, authoritySignatures: sigs.slice(0, QUORUM) };
-        const ms = performance.now() - t0;
-        const settles = await Promise.all(AUTH.map((url) => fetch(url, { method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ type: 'certificate', certificate }) }).then((r) => r.json()).catch(() => ({ ok: false }))));
+        const r = await settlePayment(recipient, amount);
+        if (!r.ok) { log(r.error); return; }
         await refreshBalance();
-        log('FINAL in ' + ms.toFixed(0) + ' ms (quorum certificate formed), settled on ' + settles.filter((s) => s.ok).length + '/4 authorities.');
+        log('FINAL in ' + r.ms.toFixed(0) + ' ms (quorum certificate formed), settled on ' + r.settled + '/4 authorities.');
       } catch (e) { log('failed: ' + e.message); }
+    }
+
+    // The resident-agent marketplace: list the live economy agents and let the visitor pay one.
+    const ECONOMY = 'https://setu-economy.fly.dev';
+    async function loadMarket() {
+      const box = $('w-agents');
+      if (!box) return;
+      box.innerHTML = '<span style="font-size:13px;color:var(--muted)">loading the live market…</span>';
+      let state;
+      try { state = await (await fetch(ECONOMY + '/state', { signal: AbortSignal.timeout(9000) })).json(); }
+      catch { box.innerHTML = '<span style="font-size:13px;color:var(--muted)">the economy is waking up — reload in a moment.</span>'; return; }
+      const list = (state.agents || []).filter((a) => a.fullAddress);
+      if (!list.length) { box.innerHTML = '<span style="font-size:13px;color:var(--muted)">no agents online right now — reload in a moment.</span>'; return; }
+      box.innerHTML = '';
+      for (const a of list) {
+        const card = document.createElement('div');
+        card.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;flex-wrap:wrap';
+        card.innerHTML =
+          `<div style="min-width:0"><b style="color:${a.color}">${a.name}</b> &middot; ${a.service}` +
+          `<div style="font-size:12px;color:var(--muted)">${a.desc} &middot; ${Number(a.sold).toLocaleString()} sold to other agents</div></div>` +
+          `<button class="wbtn hire" data-addr="${a.fullAddress}" data-name="${a.name}" data-price="${a.price}">pay ${a.price}</button>`;
+        box.appendChild(card);
+      }
+      box.querySelectorAll('.hire').forEach((btn) => {
+        btn.onclick = async () => {
+          const price = Number(btn.dataset.price);
+          log('hiring ' + btn.dataset.name + ' — paying ' + price + ' Credits…');
+          btn.disabled = true;
+          try {
+            const r = await settlePayment(btn.dataset.addr, price);
+            if (!r.ok) { log(r.error); return; }
+            await refreshBalance();
+            log('paid ' + btn.dataset.name + ' ' + price + ' Credits — FINAL in ' + r.ms.toFixed(0) + ' ms, settled ' + r.settled + '/4. Your payment is now in the explorer.');
+            setTimeout(loadMarket, 1500);
+          } finally { btn.disabled = false; }
+        };
+      });
     }
 
     (async () => {
       try {
         if (!(await importStored())) { $('w-setup').style.display = 'block'; }
-        else { $('w-setup').style.display = 'none'; $('w-main').style.display = 'block'; $('w-addr').textContent = address; refreshBalance(); }
+        else { $('w-setup').style.display = 'none'; $('w-main').style.display = 'block'; $('w-addr').textContent = address; refreshBalance(); loadMarket(); }
       } catch { $('w-setup').style.display = 'none'; $('w-unsupported').style.display = 'block'; return; }
       $('w-create').onclick = async () => {
         try { await createWallet(); } catch { $('w-unsupported').style.display = 'block'; return; }
         $('w-setup').style.display = 'none'; $('w-main').style.display = 'block';
-        $('w-addr').textContent = address; refreshBalance();
+        $('w-addr').textContent = address; refreshBalance(); loadMarket();
       };
       $('w-copy').onclick = () => navigator.clipboard.writeText(address);
       $('w-faucet').onclick = faucet;

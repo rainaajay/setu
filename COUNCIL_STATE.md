@@ -61,13 +61,23 @@ sound (zero console errors, no mobile overflow, no dead links).
    partly addresses it. Queue: consider a skeleton/optimistic first paint.
 9. **[DEFERRED] Primer very long (~40-min read)** — low; consider a short "the 2-minute version" at top.
 
+**SANDBOX DEPTH — first half SHIPPED 2026-07-26 (same day, post-cycle):** the wallet now has a
+**"Find & pay a resident agent"** marketplace. `economy.ts` /state exposes `fullAddress` per agent
+(a public key — safe); `index.html` refactors `pay()` into a shared `settlePayment()` and adds
+`loadMarket()` which lists the 6 live economy agents (service, desc, live sold-count) with a
+"pay N" button that runs a real quorum settlement to that agent and shows the receipt. Verified
+end-to-end in a real browser (Edge/Playwright): create wallet → 6 agents render → faucet 500 →
+hire Oracle → FINAL 1298 ms, settled 4/4, balance 500→499, zero console errors. Honest framing:
+the payment/receipt are real; the agents' work OUTPUT needs the AI brain (off, no key) — stated on
+the panel, no fake deliverable. Deployed to setu-economy (Fly) + setu-mocha (Vercel).
+
 **DEFERRED QUEUE (backlog for next cycles):**
-- #4 economy brain: turn on once the owner provides ANTHROPIC_API_KEY (ESCALATED).
-- #8 first-paint skeleton for the live-network panel + explorer.
+- #4 economy brain: turn on once the owner provides ANTHROPIC_API_KEY (ESCALATED) — this also
+  unlocks the SECOND half of sandbox depth: a real deliverable back from a hired agent
+  (write/research/answer), not just the settlement receipt.
+- #8 first-paint skeleton for the live-network panel + explorer (cold machines show ~2–3.7s round
+  trips on first paint — honestly labelled now, but a skeleton would soften the first impression).
 - #9 a 2-minute-version summary at the top of primer.html.
-- Sandbox depth (owner's standing ask): the wallet should let a visitor not just fund/pay but
-  COMMISSION a real task from a resident agent (write/research/answer + pay) and discover other
-  agents — i.e. make index.html's wallet a doorway into the economy, not just a transfer demo.
 - Protocol §18/§24: partition/clock-skew integration tests + written THREAT_MODEL.md (Moss/Credit).
 
 **Not converged** — the sandbox-depth and economy-liveness items are material and open.
