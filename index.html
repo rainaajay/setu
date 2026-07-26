@@ -70,6 +70,9 @@
 <header>
   <h1>Setu<span class="dot">.</span></h1>
   <p class="tagline">A settlement system without blockchain.</p>
+  <p style="margin-top:14px;font-size:clamp(15px,2.2vw,17px)">In plain words: a way for software
+  to pay software — instantly, with no fees and no middleman — that can't be double-spent and
+  needs no blockchain to do it. <a href="/primer.html">Read the plain-words primer →</a></p>
 </header>
 
 <section>
@@ -136,24 +139,49 @@
   <p>Four authorities run on Fly.io in London, Frankfurt, Washington and Singapore. Your
   browser is querying them right now; a payment is final when any three answer.
   <a href="/explorer.html">Open the live explorer →</a></p>
+  <p id="net-summary" style="font-size:14px;color:var(--muted);margin-top:10px">Checking the four authorities from your browser…</p>
   <div class="stats" id="net" style="margin-top:14px">
     <div class="stat" data-url="https://setu-auth-1.fly.dev"><b>…</b><span>London (lhr)</span></div>
     <div class="stat" data-url="https://setu-auth-2.fly.dev"><b>…</b><span>Frankfurt (fra)</span></div>
     <div class="stat" data-url="https://setu-auth-3.fly.dev"><b>…</b><span>Washington (iad)</span></div>
     <div class="stat" data-url="https://setu-auth-4.fly.dev"><b>…</b><span>Singapore (sin)</span></div>
   </div>
+  <p style="font-size:13px;color:var(--muted);margin-top:10px">These are real, round-trip
+  times measured from your device — including your own distance to each region and any
+  cold-start delay if a machine was idle. They are not the protocol's internal settlement
+  time (~4&nbsp;ms on one machine). A region reading <em>down</em> means it did not answer within
+  10&nbsp;seconds; the network stays final as long as any three of the four respond.</p>
   <script>
-    document.querySelectorAll('#net .stat').forEach(async (el) => {
-      const b = el.querySelector('b');
-      try {
-        const t0 = performance.now();
-        const res = await fetch(el.dataset.url + '/health', { signal: AbortSignal.timeout(5000) });
-        await res.json();
-        b.textContent = Math.round(performance.now() - t0) + ' ms';
-      } catch {
-        b.textContent = 'down';
+    (async () => {
+      const nodes = document.querySelectorAll('#net .stat');
+      const summary = document.getElementById('net-summary');
+      const results = await Promise.all([...nodes].map(async (el) => {
+        const b = el.querySelector('b');
+        try {
+          const t0 = performance.now();
+          const res = await fetch(el.dataset.url + '/health', { signal: AbortSignal.timeout(10000) });
+          await res.json();
+          const ms = Math.round(performance.now() - t0);
+          b.textContent = ms + ' ms';
+          return ms;
+        } catch {
+          b.textContent = 'down';
+          return null;
+        }
+      }));
+      const up = results.filter((r) => r !== null);
+      if (up.length >= 3) {
+        const med = up.slice().sort((a, b) => a - b)[Math.floor(up.length / 2)];
+        summary.textContent = `${up.length} of 4 authorities answering — quorum is live. Median round trip from your browser: ${med} ms.`;
+        summary.style.color = 'var(--good)';
+      } else if (up.length > 0) {
+        summary.textContent = `Only ${up.length} of 4 authorities answered just now — below the 3 needed for finality. Some machines may be waking from idle; reload in a moment.`;
+        summary.style.color = 'var(--accent)';
+      } else {
+        summary.textContent = 'No authorities answered just now — they may be waking from idle. Reload in a few seconds.';
+        summary.style.color = 'var(--accent)';
       }
-    });
+    })();
   </script>
 </section>
 
@@ -231,8 +259,9 @@
     }
 
     async function refreshBalance() {
+      $('w-bal').textContent = 'checking…';
       const views = (await accountViews()).filter(Boolean);
-      if (!views.length) { $('w-bal').textContent = 'network unreachable'; return; }
+      if (!views.length) { $('w-bal').textContent = 'network unreachable — try again'; return; }
       const counts = {};
       for (const v of views) counts[v.balance] = (counts[v.balance] ?? 0) + 1;
       const majority = Object.entries(counts).sort((a,b) => b[1]-a[1])[0];
@@ -240,11 +269,21 @@
     }
 
     async function faucet() {
-      log('requesting from faucet…');
-      await Promise.all(AUTH.map((url) => fetch(url + '/admin/fund', {
-        method: 'POST', body: JSON.stringify({ address, amount: 500 }) }).catch(() => null)));
+      log('requesting test Credits from the faucet…');
+      // Timeout each request, and report honestly how many authorities actually accepted —
+      // never claim credits were minted if the network was unreachable.
+      const oks = await Promise.all(AUTH.map((url) => fetch(url + '/admin/fund', {
+        method: 'POST', body: JSON.stringify({ address, amount: 500 }), signal: AbortSignal.timeout(9000),
+      }).then((r) => r.ok).catch(() => false)));
+      const ok = oks.filter(Boolean).length;
+      if (ok === 0) {
+        log('the network is unreachable right now — the authorities may be waking up. Wait a few seconds and press faucet again.');
+        return;
+      }
       await refreshBalance();
-      log('faucet done — 500 test units minted on each authority.');
+      log(ok === AUTH.length
+        ? '500 test Credits minted on all four authorities.'
+        : `500 test Credits minted on ${ok}/4 authorities (the rest are unreachable and will catch up).`);
     }
 
     async function pay() {
@@ -298,7 +337,7 @@
 <section>
   <h2>Measured on the current build</h2>
   <div class="stats">
-    <div class="stat"><b>4 ms</b><span>payment finality on one machine; ~150 ms across four continents</span></div>
+    <div class="stat"><b>4 ms</b><span>settlement on one machine; ~200 ms across four regions on three continents (higher when a region is cold)</span></div>
     <div class="stat"><b>423 /s</b><span>transfers per second, 1,000 of 1,000 settled, on a single laptop</span></div>
     <div class="stat"><b>3 of 4</b><span>signatures make a payment final; one authority can fail or lie without effect</span></div>
     <div class="stat"><b>0</b><span>fees, and 0 runtime dependencies. Spam is priced by rate limits, not gas</span></div>

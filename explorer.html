@@ -105,7 +105,7 @@ NODES.forEach((n) => {
 
 async function poll() {
   let up = 0, maxSettled = 0, maxVolume = 0, maxAccounts = 0;
-  const allRecent = [];
+  const liveNodes = [];
   await Promise.all(NODES.map(async (n) => {
     const el = $('node-' + n.name);
     try {
@@ -113,16 +113,13 @@ async function poll() {
       const s = await (await fetch(n.url + '/stats', { signal: AbortSignal.timeout(6000) })).json();
       const ms = Math.round(performance.now() - t0);
       up++;
+      liveNodes.push(n);
       maxSettled = Math.max(maxSettled, s.settled);
       maxVolume = Math.max(maxVolume, s.volume);
       maxAccounts = Math.max(maxAccounts, s.accounts);
       el.querySelector('.st').innerHTML = '<span class="up">online</span>';
       el.querySelector('.lat').textContent = ms + ' ms';
       el.querySelector('.set').textContent = s.settled.toLocaleString();
-      try {
-        const r = await (await fetch(n.url + '/recent', { signal: AbortSignal.timeout(6000) })).json();
-        for (const tx of r) allRecent.push(tx);
-      } catch {}
     } catch {
       el.querySelector('.st').innerHTML = '<span class="down">offline</span>';
       el.querySelector('.lat').textContent = '—';
@@ -134,7 +131,19 @@ async function poll() {
   $('c-accounts').textContent = maxAccounts.toLocaleString();
   $('c-up').textContent = up + ' / 4';
 
-  // de-dupe across authorities by (from,to,amount,at) and show newest first
+  // The feed is read from ONE authority, not merged across all four. Every authority settles
+  // every payment and each stamps its own settlement time, so merging four copies of the same
+  // payment (with four different timestamps) is what previously showed each payment 4×. Reading
+  // one authority's /recent gives the complete feed with one row per payment.
+  const allRecent = [];
+  for (const n of liveNodes) {
+    try {
+      const r = await (await fetch(n.url + '/recent', { signal: AbortSignal.timeout(6000) })).json();
+      for (const tx of r) allRecent.push(tx);
+      break; // first reachable authority is enough — it has the whole ledger
+    } catch { /* try the next authority */ }
+  }
+
   const feed = $('feed');
   allRecent.sort((a, b) => b.at - a.at);
   const fresh = [];

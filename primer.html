@@ -344,12 +344,26 @@
   const status = document.getElementById('status');
   if (!synth) { playBtn.disabled = true; status.textContent = 'Your browser does not support read-aloud.'; return; }
 
-  // Break the article into speakable chunks (headings + paragraphs + list items), in order.
-  const blocks = [...document.querySelectorAll('#article > h2, #article > h3, #article > p, #article > ul > li, #article > .callout > p')];
-  let i = 0, playing = false;
+  // Break the article into speakable chunks (headings + paragraphs + list items), in order,
+  // skipping empty ones so an empty first block can't stall the reader.
+  const blocks = [...document.querySelectorAll('#article > h2, #article > h3, #article > p, #article > ul > li, #article > .callout > p')]
+    .filter((b) => b.textContent.replace(/\s+/g, ' ').trim().length > 0);
+  let i = 0, playing = false, voice = null;
 
-  function speakFrom(idx) {
-    synth.cancel();
+  // Voices load asynchronously in Chromium/Edge; getVoices() is often empty on first paint.
+  // Resolve an English voice before the first utterance so the first click isn't a silent no-op.
+  function pickVoice() {
+    const vs = synth.getVoices();
+    if (!vs.length) return null;
+    return vs.find((v) => /^en[-_]/i.test(v.lang) && v.localService) || vs.find((v) => /^en[-_]/i.test(v.lang)) || vs[0];
+  }
+  voice = pickVoice();
+  synth.onvoiceschanged = () => { voice = pickVoice(); };
+
+  // Chromium pauses long-running speech after ~15s (a browser bug); a periodic resume keeps it going.
+  setInterval(() => { if (playing && !synth.paused && synth.speaking) { synth.pause(); synth.resume(); } }, 10000);
+
+  function speak(idx) {
     if (idx >= blocks.length) { reset(); return; }
     i = idx;
     const el = blocks[i];
@@ -358,8 +372,17 @@
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     const u = new SpeechSynthesisUtterance(el.textContent.replace(/\s+/g, ' ').trim());
     u.rate = 1.0; u.pitch = 1.0;
-    u.onend = () => { if (playing) speakFrom(i + 1); };
+    if (voice) { u.voice = voice; u.lang = voice.lang; }
+    u.onend = () => { if (playing) speak(i + 1); };
+    u.onerror = () => { if (playing) { playing = false; playBtn.textContent = '▶ Listen'; status.textContent = 'Read-aloud was interrupted — press Listen to resume.'; } };
     synth.speak(u);
+  }
+
+  // Cancel-then-speak in the same tick is dropped on a cold engine; defer the speak by a frame.
+  function speakFrom(idx) {
+    synth.cancel();
+    if (voice === null) voice = pickVoice();
+    setTimeout(() => speak(idx), 60);
   }
   function reset() {
     playing = false; playBtn.textContent = '▶ Listen'; status.textContent = 'Uses your device\'s built-in voice.';
@@ -370,9 +393,9 @@
     if (!playing) {
       playing = true; playBtn.textContent = '⏸ Pause';
       status.textContent = 'Reading aloud… tap any paragraph to jump there.';
-      if (synth.paused) synth.resume(); else speakFrom(i);
+      if (synth.paused && synth.speaking) synth.resume(); else speakFrom(i);
     } else {
-      playing = false; playBtn.textContent = '▶ Listen'; status.textContent = 'Paused.';
+      playing = false; playBtn.textContent = '▶ Listen'; status.textContent = 'Paused — press Listen to resume.';
       synth.pause();
     }
   };
