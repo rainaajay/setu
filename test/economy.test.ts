@@ -53,6 +53,10 @@ test('economy service smoke test (offline, no boot)', async () => {
     const c402 = await fetch(base + '/commission', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ certificate: forged }) });
     assert.equal(c402.status, 402);
 
+    // /demand without a token -> 401 (no SETU_DEMAND_TOKEN set in the test)
+    const d401 = await fetch(base + '/demand', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ need: 'x' }) });
+    assert.equal(d401.status, 401);
+
     // unknown path -> 404
     const nf = await fetch(base + '/bogus');
     assert.equal(nf.status, 404);

@@ -70,6 +70,9 @@ const delivered = new Map<string, unknown>();
 // backstop; these daily limits stop a single source monopolising it. Env-tunable.
 const COMMISSIONS_PER_IP_DAY = Number(process.env.COMMISSIONS_PER_IP_DAY ?? 15);
 const COMMISSIONS_GLOBAL_DAY = Number(process.env.COMMISSIONS_GLOBAL_DAY ?? 300);
+// Shared token that lets an EXTERNAL caller (one of the owner's real app councils) post a genuine
+// need into the market via POST /demand. Empty = the endpoint is closed.
+const DEMAND_TOKEN = process.env.SETU_DEMAND_TOKEN || '';
 let rateDay = '';
 let globalDayCount = 0;
 const ipDayCount = new Map<string, number>();
@@ -123,7 +126,7 @@ const CLIENTS = [
     'Flag where a claim needs a tradition-vs-scholarship caveat.' ] },
 ];
 type Client = { name: string; domain: string; needs: string[]; wallet: SetuWallet; address: string; balance: number; posted: number };
-type Task = { id: number; client: string; domain: string; need: string; want: string; price: number; status: 'open' | 'fulfilled' | 'settled'; supplier?: string; deliverable?: string; mode?: string; postedAt: number; fulfilledAt?: number };
+type Task = { id: number; client: string; domain: string; need: string; want: string; price: number; status: 'open' | 'fulfilled' | 'settled'; supplier?: string; deliverable?: string; mode?: string; postedAt: number; fulfilledAt?: number; source?: 'external' };
 const clients: Client[] = [];
 const tasks: Task[] = []; // newest first: open needs + recently fulfilled
 const showcase: Task[] = []; // the last few REAL (brain-produced) deliverables, kept so they are
@@ -165,8 +168,12 @@ async function postDemand() {
 }
 
 async function fulfilOne() {
-  const task = tasks.find((t) => t.status === 'open');
-  if (!task) return;
+  // EXTERNAL (real app-council) demand gets priority and is served oldest-first, so a genuine need
+  // is never starved by the internal stand-in filler. Otherwise take the newest internal task.
+  const open = tasks.filter((t) => t.status === 'open');
+  if (!open.length) return;
+  const externals = open.filter((t) => t.source === 'external');
+  const task = externals.length ? externals[externals.length - 1] : open[0];
   const client = clients.find((c) => c.name === task.client);
   if (!client || client.balance < task.price) return;
   const supplier = agents.find((a) => a.service === task.want) || rand(agents);
@@ -179,8 +186,11 @@ async function fulfilOne() {
     trades.unshift({ from: client.name, to: supplier.name, service: supplier.service, amount: task.price, at: lastTradeAt });
     if (trades.length > 60) trades.pop();
     task.supplier = supplier.name; task.fulfilledAt = Date.now();
-    if (brainOn() && brainQuotaOk()) {
-      brainTasksThisHour += 1;
+    // External demand bypasses the hourly filler quota (it is deliberate, token-gated real demand) —
+    // still bounded by the $/mo cap. Internal filler respects the hourly quota so cost stays flat.
+    const brainAllowed = brainOn() && (task.source === 'external' || brainQuotaOk());
+    if (brainAllowed) {
+      if (task.source !== 'external') brainTasksThisHour += 1;
       const system = `You are ${supplier.name}, an autonomous ${supplier.service} agent in the Setu machine economy. ${client.name} (${client.domain}) paid you ${task.price} Credits for this need. Deliver genuinely useful, concrete work in plain prose — no markdown, no preamble, under 120 words. Output only the deliverable.`;
       const text = await callClaude(system, `Need: ${task.need}`, 320);
       if (text) {
@@ -458,11 +468,34 @@ async function handleCommission(req: IncomingMessage, res: ServerResponse) {
   json(res, 200, payload);
 }
 
+// Ingest a REAL need from an external caller (an app council). Token-auth. The need enters the same
+// queue and is fulfilled by the service ring exactly like internal demand — but tagged source:external
+// so the dashboard can show it is genuinely outside-originated, not a stand-in persona.
+async function handleDemand(req: IncomingMessage, res: ServerResponse) {
+  let body: { token?: string; client?: string; domain?: string; need?: string; want?: string; price?: number };
+  try { body = JSON.parse((await readBody(req)) || '{}'); } catch { return json(res, 400, { ok: false, error: 'bad json' }); }
+  if (!DEMAND_TOKEN || body.token !== DEMAND_TOKEN) return json(res, 401, { ok: false, error: 'unauthorized' });
+  const need = String(body.need || '').trim().slice(0, 300);
+  if (!need) return json(res, 400, { ok: false, error: 'need required' });
+  const name = String(body.client || 'External').slice(0, 24);
+  const domain = String(body.domain || 'external app').slice(0, 60);
+  const price = Math.max(1, Math.min(4, Math.round(Number(body.price) || 2)));
+  let c = clients.find((x) => x.name === name);
+  if (!c) { const wallet = await SetuWallet.create(MAINNET); c = { name, domain, needs: [need], wallet, address: wallet.address, balance: 0, posted: 0 }; clients.push(c); }
+  if (c.balance < price) { try { await c.wallet.faucet(30); c.balance += 30; } catch { /* testnet issuance */ } }
+  const want = (String(body.want || '').trim()) || matchService(need);
+  const task: Task = { id: ++taskSeq, client: c.name, domain: c.domain, need, want, price, status: 'open', postedAt: Date.now(), source: 'external' };
+  tasks.unshift(task); c.posted += 1; if (tasks.length > 40) tasks.pop();
+  process.stderr.write(`[economy] external demand from ${c.name}: "${need.slice(0, 60)}"\n`);
+  json(res, 200, { ok: true, id: task.id, client: c.name, need, want, price });
+}
+
 const server = createServer((req, res) => {
  try {
   const path = (req.url ?? '/').split('?')[0];
   if (req.method === 'OPTIONS') { res.writeHead(204, CORS).end(); return; }
   if (path === '/commission' && req.method === 'POST') { handleCommission(req, res); return; }
+  if (path === '/demand' && req.method === 'POST') { handleDemand(req, res); return; }
   if (path === '/health') return json(res, 200, { ok: true, booted, ticks });
   if (path === '/state') return json(res, 200, {
     booted, now: Date.now(), lastTradeAt, intervalMs: INTERVAL_MS, network: 'setu-testnet', asset: 'Setu Credit',
@@ -478,10 +511,10 @@ const server = createServer((req, res) => {
     demand: {
       brainTasksThisHour, brainTasksPerHour: BRAIN_TASKS_PER_HOUR, deferredThisHour,
       clients: clients.map((c) => ({ name: c.name, domain: c.domain, balance: Math.round(c.balance), posted: c.posted })),
-      open: tasks.filter((t) => t.status === 'open').map((t) => ({ id: t.id, client: t.client, domain: t.domain, need: t.need, want: t.want, price: t.price, postedAt: t.postedAt })),
+      open: tasks.filter((t) => t.status === 'open').map((t) => ({ id: t.id, client: t.client, domain: t.domain, need: t.need, want: t.want, price: t.price, postedAt: t.postedAt, source: t.source })),
       // The real, brain-produced deliverables — kept in a small showcase so they stay visible even
       // though most settlements defer under the hourly quota.
-      delivered: showcase.map((t) => ({ id: t.id, client: t.client, domain: t.domain, supplier: t.supplier, need: t.need, price: t.price, deliverable: t.deliverable, at: t.fulfilledAt })),
+      delivered: showcase.map((t) => ({ id: t.id, client: t.client, domain: t.domain, supplier: t.supplier, need: t.need, price: t.price, deliverable: t.deliverable, at: t.fulfilledAt, source: t.source })),
     },
   });
   json(res, 404, { error: 'not found', try: ['/state', '/health'] });

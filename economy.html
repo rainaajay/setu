@@ -175,16 +175,17 @@ function renderDemand() {
   const dm = (state && state.demand) || {};
   if ($('d-quota')) $('d-quota').textContent = dm.brainTasksPerHour ?? 8;
   if ($('d-used')) $('d-used').textContent = dm.brainTasksThisHour ?? 0;
+  const ext = (t) => t.source === 'external' ? ' <span style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--good);border:1px solid var(--good);border-radius:6px;padding:1px 5px;white-space:nowrap">external · real app</span>' : '';
   const open = dm.open || [];
   $('demand-open').innerHTML = open.length ? open.map((t) => `
-    <div class="tx"><div class="who"><b>${escapeHtml(t.client)}</b> needs <b>${escapeHtml(t.want)}</b></div>
+    <div class="tx"><div class="who"><b>${escapeHtml(t.client)}</b> needs <b>${escapeHtml(t.want)}</b>${ext(t)}</div>
     <div style="font-size:13px;color:var(--muted);margin-top:3px">${escapeHtml(t.need)}</div>
     <div class="ago">${t.price} Cr · posted ${agoText(ageOf(t.postedAt))}</div></div>`).join('')
     : '<div class="empty">no open needs right now — all fulfilled.</div>';
   const done = dm.delivered || [];
   const deferNote = dm.deferredThisHour ? `<div class="empty" style="padding:12px 15px;text-align:left;border-bottom:1px solid var(--line)">+ ${dm.deferredThisHour} more need${dm.deferredThisHour === 1 ? '' : 's'} were paid &amp; settled this hour beyond the ${dm.brainTasksPerHour} write-up quota — payment real, deliverable deferred (protects the budget).</div>` : '';
   $('demand-done').innerHTML = done.length ? deferNote + done.map((t) => `
-    <div class="tx"><div class="who"><b>${escapeHtml(t.client)}</b> <span class="arrow">→</span> <b>${escapeHtml(t.supplier || '?')}</b> · ${t.price} Cr</div>
+    <div class="tx"><div class="who"><b>${escapeHtml(t.client)}</b> <span class="arrow">→</span> <b>${escapeHtml(t.supplier || '?')}</b> · ${t.price} Cr${ext(t)}</div>
     <div style="font-size:12.5px;color:var(--muted);margin-top:2px">${escapeHtml(t.need)}</div>
     <div style="font-size:13px;margin-top:6px;white-space:pre-wrap">${escapeHtml(clean(t.deliverable || '').slice(0, 600))}</div>
     <div class="ago">${agoText(ageOf(t.at))}</div></div>`).join('')

@@ -96,10 +96,20 @@ Population count and task volume are the real numbers from /state; "millions of 
   tasks/showcase, AND the spentUsd budget ledger; monthTick() makes the $/mo cap truly monthly.
   fly.toml mounts /data (volume setu_economy_data, single machine). Verified live: machine restart →
   "restored 6 agents + 5 clients (tx 37, spent $0.01)", tx continued 37→48, no genesis reset.
-- **[NEXT] #3 (A) genuinely EXTERNAL demand** — one of the owner's real app councils actually emitting
-  a task into Setu, not a stand-in persona. Proposed shape: a `POST /demand` endpoint (shared-token
-  auth) on setu-economy; then wire ONE app's council-cycle.js (Chitra or Upaya cleanest) to post a
-  real need it surfaces. Cross-repo — needs the owner's nod on which app + that we touch that repo.
+- **[DONE] #3 (A) genuinely EXTERNAL demand — Chitra wired (owner chose Chitra).**
+  - Setu: `POST /demand` (token-auth via `SETU_DEMAND_TOKEN`, a Fly secret) ingests a real need into
+    the same queue, tagged `source:'external'`. `fulfilOne` now serves EXTERNAL demand first
+    (oldest-first) and gives it brain PRIORITY — it bypasses the hourly filler quota (still bounded by
+    the $/mo cap), since it is deliberate token-gated real demand, so a genuine need is never starved
+    by internal filler. Dashboard badges external deliverables "external · real app". Smoke test adds
+    /demand→401 without token. (23/23.)
+  - Chitra (C:\Users\raina\chitra, not a git repo — local only): `scripts/emit-setu-demand.mjs` posts a
+    need to Setu; `.claude/workflows/council-cycle.js` chair now outputs `setuDemand {need,want,price}`
+    each cycle (a real outsourceable Chitra need) for the bridge to emit.
+  - **Verified end-to-end:** the Chitra chair named a real need (giclée/canvas print colour-shift
+    caveats vs sRGB preview); emitted it; it landed on Setu's board as external; Scribe produced a real
+    on-topic deliverable, paid on the live network. Bad token → 401. First cut had external needs
+    starved/deferred by internal filler + quota — fixed with the priority rule above.
 - #4 (E) liveness polish (COG_INTERVAL_MS down, loadMarket backoff, first-paint skeleton); #5 (D)
   human-in-the-loop growth surface (draft-and-approve — NEVER autonomous posting).
 
