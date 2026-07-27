@@ -85,10 +85,124 @@ async function makeAgent(r: { name: string; service: string; desc: string; price
   return { ...r, wallet, address: wallet.address, balance, sold: 0, bought: 0, revenue: 0 };
 }
 
+// --- Demand & supply -----------------------------------------------------------------
+// The supply side is the service ring above. The demand side is a set of CLIENT agents, each
+// standing in for one of the owner's real apps, posting REAL needs those apps would actually have.
+// A client posts a need (demand); a matching service agent fulfils it (supply) with a real
+// settlement; if the hourly brain quota allows, the supplier produces the actual work, otherwise
+// the payment still settles and the deliverable is honestly deferred. Real needs, real payments,
+// real work — bounded so a demand surge can never become a cost surge.
+const CLIENTS = [
+  { name: 'Chitra', domain: 'art-commissioning studio', needs: [
+    'Critique the benchmark-round UX for a first-time art buyer, in plain words.',
+    'Write a short reference note on framing a large canvas for a living room.',
+    'Flag the single biggest risk in trusting an AI-suggested wall size.' ] },
+  { name: 'Upaya', domain: '11+ tutoring app', needs: [
+    'Audit this idea for repetition: five near-identical practice questions. Name the fix.',
+    'Draft a one-paragraph case for question-first over fact-first pedagogy.',
+    'Propose a risk alert for a child stuck on one topic too long.' ] },
+  { name: 'Radar', domain: 'counterparty-risk platform', needs: [
+    'Write a plain-language risk note on single-name concentration.',
+    'Turn a raw exposure table into one buy/sell/hold signal with a reason.',
+    'Give a reference basis for pricing a mid-cap credit spread.' ] },
+  { name: 'Desk', domain: 'cross-asset trading desk', needs: [
+    'Produce a one-paragraph trade signal: gold vs short-duration bonds.',
+    'Raise a risk alert on a crowded long position.',
+    'Convert a P&L from USD to GBP and EUR and note the FX risk.' ] },
+  { name: 'Kosha', domain: 'Indian-knowledge encyclopedia', needs: [
+    'Summarise one Nyaya concept in plain English for a newcomer.',
+    'Flag where a claim needs a tradition-vs-scholarship caveat.' ] },
+];
+type Client = { name: string; domain: string; needs: string[]; wallet: SetuWallet; address: string; balance: number; posted: number };
+type Task = { id: number; client: string; domain: string; need: string; want: string; price: number; status: 'open' | 'fulfilled' | 'settled'; supplier?: string; deliverable?: string; mode?: string; postedAt: number; fulfilledAt?: number };
+const clients: Client[] = [];
+const tasks: Task[] = []; // newest first: open needs + recently fulfilled
+const showcase: Task[] = []; // the last few REAL (brain-produced) deliverables, kept so they are
+                             // always visible even though most settlements defer under the quota
+let taskSeq = 0;
+
+// Hourly cap on brain-produced deliverables from the autonomous market (separate from the visitor
+// commission limits). Keeps continuous internal demand cheap; the $/mo cap is still the backstop.
+const BRAIN_TASKS_PER_HOUR = Number(process.env.BRAIN_TASKS_PER_HOUR ?? 8);
+let brainHour = '';
+let brainTasksThisHour = 0;
+let deferredThisHour = 0;
+function brainQuotaOk(): boolean {
+  const h = new Date().toISOString().slice(0, 13);
+  if (h !== brainHour) { brainHour = h; brainTasksThisHour = 0; deferredThisHour = 0; }
+  return brainTasksThisHour < BRAIN_TASKS_PER_HOUR;
+}
+
+// Match a need to the service best able to fulfil it (falls back to the written-report generalist).
+function matchService(need: string): string {
+  const n = need.toLowerCase();
+  if (/signal|buy\/sell|trade/.test(n)) return 'trade signals';
+  if (/\bprice|reference|basis\b/.test(n)) return 'price feed';
+  if (/risk|alert|flag|stuck|caveat/.test(n)) return 'risk alert';
+  if (/convert|currency|usd|gbp|eur|p&l|fx/.test(n)) return 'currency conversion';
+  if (/execute|order/.test(n)) return 'order execution';
+  return 'written report';
+}
+
+async function postDemand() {
+  if (tasks.filter((t) => t.status === 'open').length >= 8) return; // bounded backlog
+  const c = rand(clients);
+  if (!c) return;
+  if (c.balance < 4) { try { await c.wallet.faucet(30); c.balance += 30; } catch { return; } } // demand budget (testnet issuance)
+  const need = rand(c.needs);
+  tasks.unshift({ id: ++taskSeq, client: c.name, domain: c.domain, need, want: matchService(need), price: 2, status: 'open', postedAt: Date.now() });
+  c.posted += 1;
+  if (tasks.length > 40) tasks.pop();
+}
+
+async function fulfilOne() {
+  const task = tasks.find((t) => t.status === 'open');
+  if (!task) return;
+  const client = clients.find((c) => c.name === task.client);
+  if (!client || client.balance < task.price) return;
+  const supplier = agents.find((a) => a.service === task.want) || rand(agents);
+  if (!supplier) return;
+  try {
+    await client.wallet.pay(supplier.address, task.price, `${client.name}->${supplier.name}`);
+    client.balance -= task.price;
+    supplier.balance += task.price; supplier.sold += 1; supplier.revenue += task.price;
+    totalTx += 1; gdp += task.price; lastTradeAt = Date.now();
+    trades.unshift({ from: client.name, to: supplier.name, service: supplier.service, amount: task.price, at: lastTradeAt });
+    if (trades.length > 60) trades.pop();
+    task.supplier = supplier.name; task.fulfilledAt = Date.now();
+    if (brainOn() && brainQuotaOk()) {
+      brainTasksThisHour += 1;
+      const system = `You are ${supplier.name}, an autonomous ${supplier.service} agent in the Setu machine economy. ${client.name} (${client.domain}) paid you ${task.price} Credits for this need. Deliver genuinely useful, concrete work in plain prose — no markdown, no preamble, under 120 words. Output only the deliverable.`;
+      const text = await callClaude(system, `Need: ${task.need}`, 320);
+      if (text) {
+        task.status = 'fulfilled'; task.mode = 'ai'; task.deliverable = text;
+        showcase.unshift({ ...task }); if (showcase.length > 8) showcase.pop();
+        thought(supplier.name, `delivered for ${client.name}: "${task.need.slice(0, 56)}${task.need.length > 56 ? '…' : ''}"`);
+      } else { task.status = 'settled'; task.mode = 'deferred'; task.deliverable = `Paid and settled; ${supplier.name} could not produce output just now.`; }
+    } else {
+      task.status = 'settled'; task.mode = 'deferred'; deferredThisHour += 1;
+      task.deliverable = `Paid and settled on the network. The written deliverable is deferred — this hour's shared AI quota is used up (protects the $${MONTHLY_BUDGET_USD}/mo cap). The payment is real regardless.`;
+    }
+  } catch { /* settlement failed; leave the task open to retry next round */ }
+}
+
+async function demandLoop() {
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 6000 + Math.floor(Math.random() * 3500)));
+    try { await postDemand(); await fulfilOne(); } catch { /* keep the loop alive */ }
+  }
+}
+
 async function boot() {
   for (const r of ROLES) agents.push(await makeAgent(r, SEED));
   // Genesis issuance from the faucet (the testbed's fixed-supply Treasury stand-in).
   await Promise.all(agents.map((a) => a.wallet.faucet(SEED).catch(() => {})));
+  // The demand side: one client wallet per portfolio app, funded to pay for work.
+  for (const c of CLIENTS) {
+    const wallet = await SetuWallet.create(MAINNET);
+    clients.push({ name: c.name, domain: c.domain, needs: c.needs, wallet, address: wallet.address, balance: 0, posted: 0 });
+  }
+  await Promise.all(clients.map((c) => c.wallet.faucet(30).then(() => { c.balance = 30; }).catch(() => {})));
   // Pre-cache the committee public keys so /commission can verify certificates without a fetch
   // per request (verifyCertificate falls back to a lazy fetch if this fails).
   try {
@@ -96,9 +210,10 @@ async function boot() {
     if (Array.isArray(info.publicKeys)) MAINNET.publicKeys = info.publicKeys;
   } catch { /* verifyCertificate will fetch lazily */ }
   booted = true;
-  process.stderr.write(`setu-economy: ${agents.length} agents funded ${SEED} each; ~${INTERVAL_MS}ms/trade; brain ${brainKey() ? 'ARMED' : 'off (no key)'}\n`);
+  process.stderr.write(`setu-economy: ${agents.length} supply agents + ${clients.length} demand clients; ~${INTERVAL_MS}ms/trade; brain ${brainKey() ? 'ARMED' : 'off (no key)'}\n`);
   loop();
   cognitionLoop();
+  demandLoop();
 }
 
 // Ask Claude (cheapest model) for one decision. Returns null (and stays free) with no key.
@@ -278,6 +393,16 @@ const server = createServer((req, res) => {
     // It is a public key — safe to publish; paying TO an address is always safe.
     agents: agents.map((a) => ({ name: a.name, service: a.service, desc: a.desc, price: a.price, color: a.color, address: a.address.slice(16, 24) + '…', fullAddress: a.address, balance: a.balance, sold: a.sold, bought: a.bought, revenue: a.revenue })),
     trades,
+    // Demand & supply: real needs posted by client agents (the owner's apps), fulfilled by the
+    // service ring. brainTasks*/quota make the cost envelope explicit.
+    demand: {
+      brainTasksThisHour, brainTasksPerHour: BRAIN_TASKS_PER_HOUR, deferredThisHour,
+      clients: clients.map((c) => ({ name: c.name, domain: c.domain, balance: Math.round(c.balance), posted: c.posted })),
+      open: tasks.filter((t) => t.status === 'open').map((t) => ({ id: t.id, client: t.client, domain: t.domain, need: t.need, want: t.want, price: t.price, postedAt: t.postedAt })),
+      // The real, brain-produced deliverables — kept in a small showcase so they stay visible even
+      // though most settlements defer under the hourly quota.
+      delivered: showcase.map((t) => ({ id: t.id, client: t.client, domain: t.domain, supplier: t.supplier, need: t.need, price: t.price, deliverable: t.deliverable, at: t.fulfilledAt })),
+    },
   });
   json(res, 404, { error: 'not found', try: ['/state', '/health'] });
  } catch (e) {

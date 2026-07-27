@@ -50,6 +50,49 @@ What is the cost/abuse envelope of open demand generation (Bean Counter/Credit)?
 
 ---
 
+## Cycle 3 — 2026-07-27 — the demand/supply engine SHIPPED (owner theme delivered)
+
+Objective (one line): the best HONEST consensusless settlement rail for the agent economy — now with
+a self-running market of real needs and real work, budget-bounded.
+
+**Built the demand/supply engine in `packages/setu-economy/economy.ts` + surfaced it on economy.html.**
+This delivers the owner's Cycle-2 theme, now that Cycle 2 made the economy stop crash-looping.
+
+- **Demand side = the owner's own apps.** Five CLIENT agents stand in for real apps — Chitra, Upaya,
+  Radar (Counterparty Intel), Desk (Cross-Asset), Kośa — each with a bank of GENUINE needs those apps
+  would actually have (critique this UX, audit these questions for repetition, write a concentration
+  risk note, produce a trade signal, summarise a Nyāya concept…). Each is a real Setu wallet, faucet-
+  funded (testnet issuance), posting needs into a bounded open queue.
+- **Supply side = the service ring.** `fulfilOne()` matches an open need to the right service agent
+  (`matchService` keyword map), the client pays the supplier on the real network (real quorum
+  settlement), and the supplier produces the actual deliverable via the brain.
+- **Budget guard (the crux of honesty here).** `BRAIN_TASKS_PER_HOUR` (8) caps brain-produced
+  write-ups per hour; beyond it, payments STILL settle and the deliverable is honestly deferred
+  ("payment real, deliverable deferred — protects the $60/mo cap"). A demand surge can never become a
+  cost surge. A `showcase` ring keeps the last 8 REAL deliverables visible even though most
+  settlements defer. `demandLoop()` runs every ~6–9s; the fast internal trade pulse (every ~2s) is
+  untouched.
+- **Dashboard:** economy.html gained a "Demand & supply — real needs, real work" section: an Open-needs
+  board + a Delivered showcase of the real work, with a one-line honest summary of needs that settled
+  beyond the hourly quota. Supply counter relabelled "service-ring genesis supply" (clients are
+  faucet-funded, so total ≠ fixed).
+- **Verified live:** /state shows 5 clients posting, service ring fulfilling; 7 real deliverables in
+  the showcase (Radar concentration-risk note, Radar credit-spread basis, Kośa Nyāya summary, Chitra
+  canvas-framing note, Upaya topic-fixation alert, Upaya question-repetition audit, Desk crowded-long
+  alert) — all on-topic, plain-prose; brainTasks 7–8/8, deferred count climbing after, spent **$0.01**.
+  Browser (Edge): dashboard renders the board, real deliverables front-and-centre, zero console errors.
+
+**Guardrail honoured:** NO autonomous external posting (LinkedIn/X/email). Demand is real (portfolio
+needs) but self-generated inside Setu — labelled as such, never dressed as organic external demand.
+Population count and task volume are the real numbers from /state; "millions of agents" stays aspiration.
+
+**Cycle 3 open / next:** wire a genuinely EXTERNAL demand source (one real app council actually
+emitting a task, rather than a stand-in persona); economy state persistence to a Fly volume (Cycle-3
+queue #1 — so counters + the monthly budget ledger survive restarts); economy smoke test in `npm test`;
+optional human-in-the-loop growth surface (draft-and-approve, never autonomous).
+
+---
+
 ## Cycle 2 — 2026-07-27 — Chair: Ajay — Grade: B+ / improving — the "stop lying, then stop crashing" cycle: live crash fixed + every overclaim killed (demand/supply theme deferred on purpose)
 
 Objective (one line): the best HONEST consensusless settlement rail for the agent economy —
