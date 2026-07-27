@@ -6,6 +6,8 @@
 // Runs as a service: a market loop every TICK_MS, plus GET /state, /health (CORS) for the
 // public dashboard. Deploy target: Fly (setu-economy). Test units == Setu Credits.
 import { createServer, type ServerResponse, type IncomingMessage } from 'node:http';
+import { writeFileSync, renameSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { SetuWallet, MAINNET, verifyCertificate } from '../setu-pay/index.ts';
 
 const PORT = Number(process.env.PORT ?? 8080);
@@ -52,6 +54,13 @@ let ticks = 0; // market-loop iterations since boot — a liveness signal for /h
 const INITIAL_SUPPLY = ROLES.length * SEED; // fixed; spawns move existing Credits, don't mint
 const thoughts: { agent: string; text: string; at: number }[] = [];
 let spentUsd = 0, cogCalls = 0;
+let budgetMonth = ''; // YYYY-MM; when the month rolls over, spentUsd resets — a true monthly cap
+
+// Durable state. When SETU_STATE_DIR is set (a Fly volume in prod), the economy persists its agents
+// (incl. wallet keys), balances, counters, tasks, AND the spend/budget ledger — so a restart or
+// deploy no longer resets the market to genesis or forgets how much of the $/mo budget is spent.
+const STATE_DIR = process.env.SETU_STATE_DIR || '';
+const STATE_FILE = STATE_DIR ? join(STATE_DIR, 'economy-state.json') : '';
 // One paid commission -> one deliverable. Keyed by sender:seq so re-requesting the same payment
 // returns the same work and never double-charges the AI budget.
 const delivered = new Map<string, unknown>();
@@ -193,16 +202,86 @@ async function demandLoop() {
   }
 }
 
-async function boot() {
-  for (const r of ROLES) agents.push(await makeAgent(r, SEED));
-  // Genesis issuance from the faucet (the testbed's fixed-supply Treasury stand-in).
-  await Promise.all(agents.map((a) => a.wallet.faucet(SEED).catch(() => {})));
-  // The demand side: one client wallet per portfolio app, funded to pay for work.
-  for (const c of CLIENTS) {
-    const wallet = await SetuWallet.create(MAINNET);
-    clients.push({ name: c.name, domain: c.domain, needs: c.needs, wallet, address: wallet.address, balance: 0, posted: 0 });
+// Reset the spend ledger when the calendar month changes, so MONTHLY_BUDGET_USD is genuinely monthly.
+function monthTick() {
+  const m = new Date().toISOString().slice(0, 7);
+  if (m !== budgetMonth) { budgetMonth = m; spentUsd = 0; cogCalls = 0; }
+}
+
+async function snapshot(): Promise<string> {
+  return JSON.stringify({
+    v: 1, savedAt: Date.now(),
+    totalTx, gdp, lastTradeAt, spentUsd, cogCalls, budgetMonth, taskSeq,
+    rateDay, globalDayCount, ipDay: [...ipDayCount.entries()],
+    brainHour, brainTasksThisHour, deferredThisHour,
+    agents: await Promise.all(agents.map(async (a) => ({ name: a.name, service: a.service, desc: a.desc, price: a.price, color: a.color, wallet: await a.wallet.export(), balance: a.balance, sold: a.sold, bought: a.bought, revenue: a.revenue }))),
+    clients: await Promise.all(clients.map(async (c) => ({ name: c.name, domain: c.domain, needs: c.needs, wallet: await c.wallet.export(), balance: c.balance, posted: c.posted }))),
+    tasks, showcase, thoughts, trades,
+  });
+}
+
+// Atomic write (temp + rename), mirroring authority.ts. Never throws into the caller.
+async function saveState() {
+  if (!STATE_FILE) return;
+  try {
+    if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true });
+    const tmp = STATE_FILE + '.tmp';
+    writeFileSync(tmp, await snapshot());
+    renameSync(tmp, STATE_FILE);
+  } catch (e) { process.stderr.write(`[economy] saveState failed: ${(e as Error).message}\n`); }
+}
+
+// Returns true if it restored a prior state (so boot skips fresh genesis).
+async function loadState(): Promise<boolean> {
+  if (!STATE_FILE || !existsSync(STATE_FILE)) return false;
+  try {
+    const s = JSON.parse(readFileSync(STATE_FILE, 'utf8'));
+    if (s.v !== 1 || !Array.isArray(s.agents) || !s.agents.length) return false;
+    for (const a of s.agents) {
+      const wallet = await SetuWallet.load(a.wallet, MAINNET);
+      agents.push({ name: a.name, service: a.service, desc: a.desc, price: a.price, color: a.color, wallet, address: wallet.address, balance: a.balance, sold: a.sold, bought: a.bought, revenue: a.revenue });
+    }
+    for (const c of (s.clients || [])) {
+      const wallet = await SetuWallet.load(c.wallet, MAINNET);
+      clients.push({ name: c.name, domain: c.domain, needs: c.needs, wallet, address: wallet.address, balance: c.balance, posted: c.posted });
+    }
+    totalTx = s.totalTx || 0; gdp = s.gdp || 0; lastTradeAt = s.lastTradeAt || 0;
+    spentUsd = s.spentUsd || 0; cogCalls = s.cogCalls || 0; budgetMonth = s.budgetMonth || '';
+    taskSeq = s.taskSeq || 0;
+    rateDay = s.rateDay || ''; globalDayCount = s.globalDayCount || 0;
+    if (Array.isArray(s.ipDay)) for (const [k, n] of s.ipDay) ipDayCount.set(k, n);
+    brainHour = s.brainHour || ''; brainTasksThisHour = s.brainTasksThisHour || 0; deferredThisHour = s.deferredThisHour || 0;
+    if (Array.isArray(s.tasks)) tasks.push(...s.tasks);
+    if (Array.isArray(s.showcase)) showcase.push(...s.showcase);
+    if (Array.isArray(s.thoughts)) thoughts.push(...s.thoughts);
+    if (Array.isArray(s.trades)) trades.push(...s.trades);
+    process.stderr.write(`[economy] restored ${agents.length} agents + ${clients.length} clients from ${STATE_FILE} (tx ${totalTx}, spent $${spentUsd.toFixed(2)})\n`);
+    return true;
+  } catch (e) { process.stderr.write(`[economy] loadState failed, starting fresh: ${(e as Error).message}\n`); return false; }
+}
+
+async function saveLoop() {
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 15000));
+    monthTick();
+    await saveState();
   }
-  await Promise.all(clients.map((c) => c.wallet.faucet(30).then(() => { c.balance = 30; }).catch(() => {})));
+}
+
+async function boot() {
+  const restored = await loadState();
+  if (!restored) {
+    for (const r of ROLES) agents.push(await makeAgent(r, SEED));
+    // Genesis issuance from the faucet (the testbed's fixed-supply Treasury stand-in).
+    await Promise.all(agents.map((a) => a.wallet.faucet(SEED).catch(() => {})));
+    // The demand side: one client wallet per portfolio app, funded to pay for work.
+    for (const c of CLIENTS) {
+      const wallet = await SetuWallet.create(MAINNET);
+      clients.push({ name: c.name, domain: c.domain, needs: c.needs, wallet, address: wallet.address, balance: 0, posted: 0 });
+    }
+    await Promise.all(clients.map((c) => c.wallet.faucet(30).then(() => { c.balance = 30; }).catch(() => {})));
+  }
+  monthTick();
   // Pre-cache the committee public keys so /commission can verify certificates without a fetch
   // per request (verifyCertificate falls back to a lazy fetch if this fails).
   try {
@@ -210,10 +289,11 @@ async function boot() {
     if (Array.isArray(info.publicKeys)) MAINNET.publicKeys = info.publicKeys;
   } catch { /* verifyCertificate will fetch lazily */ }
   booted = true;
-  process.stderr.write(`setu-economy: ${agents.length} supply agents + ${clients.length} demand clients; ~${INTERVAL_MS}ms/trade; brain ${brainKey() ? 'ARMED' : 'off (no key)'}\n`);
+  process.stderr.write(`setu-economy: ${restored ? 'restored' : 'genesis'} — ${agents.length} supply agents + ${clients.length} demand clients; ~${INTERVAL_MS}ms/trade; brain ${brainKey() ? 'ARMED' : 'off (no key)'}\n`);
   loop();
   cognitionLoop();
   demandLoop();
+  saveLoop();
 }
 
 // Ask Claude (cheapest model) for one decision. Returns null (and stays free) with no key.
