@@ -413,5 +413,11 @@ const server = createServer((req, res) => {
  }
 });
 
-server.listen(PORT, HOST, () => process.stderr.write(`setu-economy on ${HOST}:${PORT}\n`));
-boot();
+// In test mode the smoke test imports this module, listens on an ephemeral port itself, and never
+// calls boot() — so it stays offline ($0, no faucet/pay to real authorities, no brain). In every
+// other case (prod, local run) we listen and boot exactly as before.
+export { server };
+if (process.env.SETU_ECONOMY_TEST !== '1') {
+  server.listen(PORT, HOST, () => process.stderr.write(`setu-economy on ${HOST}:${PORT}\n`));
+  boot();
+}
