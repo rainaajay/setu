@@ -228,7 +228,7 @@ Certificate   { order, senderSignature,
   <h2 id="evidence"><span class="n">06</span>Prototype and evidence</h2>
   <div class="stats">
     <div class="stat"><b>~4 ms</b><span>certificate finality, one machine</span></div>
-    <div class="stat"><b>~200 ms</b><span>certificate finality, four regions</span></div>
+    <div class="stat"><b>~280 ms</b><span>typical certificate finality, four regions</span></div>
     <div class="stat"><b>280/280</b><span>chained spends first-try, no extra delay</span></div>
     <div class="stat"><b>3 of 4</b><span>signatures form a certificate</span></div>
   </div>
@@ -249,7 +249,7 @@ Certificate   { order, senderSignature,
   (p50)</strong> — statistically the same as a fresh payment (delta +24&nbsp;ms). That is spendable-balance
   finality, measured both on a laptop and across the wide area; the authority-failure case is validated in the
   localhost run.</p>
-  <p><strong>What the numbers do not establish.</strong> 423 transactions/second on a laptop shows the
+  <p><strong>What the numbers do not establish.</strong> ~340–420 transactions/second on a laptop shows the
   software runs, not production scale; FastPay's 80,000&nbsp;TPS came from favourable lab conditions,
   lightly-loaded WAN authorities, no full persistent-database costs, and independent accounts (repeated spends
   from one sender cannot be parallelised). Persistence, contention, recovery, and security controls are part

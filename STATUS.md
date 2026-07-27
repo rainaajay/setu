@@ -25,7 +25,7 @@ decentralised governance. Independent operators are on the roadmap.
 
 ## Summary
 
-**Tested protocol core** (`implemented-tested`, `npm test` → 12 passing): quorum-signed
+**Tested protocol core** (`implemented-tested`, `npm test` → 22 passing: 12 protocol + 5 e2e + 5 persistence): quorum-signed
 settlement, double-spend prevention, sequence/replay protection, Byzantine tolerance (f=1 of 4),
 value conservation, offline receipt verification, idempotent settlement, server-enforced
 delegated budgets (per-payment cap, cumulative total, expiry, revocation, agent identity), and
@@ -47,6 +47,11 @@ discovery, OpenAI tools & review bridge, authority rotation/governance, operator
 incident pages, and the written threat model.
 
 **Demonstration only:** the resident agent economy — a controlled test environment, not evidence
-of a viable macroeconomy.
+of a viable macroeconomy. It runs a **live, budget-capped LLM** (claude-haiku-4-5): a $60/mo hard
+cap plus per-IP (15) and global (300) daily commission limits, with spend-to-date visible at
+`/state`. Payments still settle when the budget is spent — you get a verified receipt, no
+deliverable. Economy state and the budget/rate counters are in-memory today and reset on restart
+(durable persistence is queued), so the $60 cap is per-process-lifetime, not yet a durable monthly
+ledger; the Anthropic account limit is the ultimate backstop.
 
 See `IMPLEMENTATION_NOTES.md` for what changed in each increment and why.

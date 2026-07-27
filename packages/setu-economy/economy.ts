@@ -48,6 +48,7 @@ let totalTx = 0;
 let gdp = 0;
 let lastTradeAt = 0;
 let booted = false;
+let ticks = 0; // market-loop iterations since boot — a liveness signal for /health
 const INITIAL_SUPPLY = ROLES.length * SEED; // fixed; spawns move existing Credits, don't mint
 const thoughts: { agent: string; text: string; at: number }[] = [];
 let spentUsd = 0, cogCalls = 0;
@@ -192,6 +193,7 @@ async function tradeOnce() {
 
 async function loop() {
   for (;;) {
+    ticks += 1;
     await tradeOnce();
     await new Promise((r) => setTimeout(r, INTERVAL_MS + Math.floor(Math.random() * 900)));
   }
@@ -262,6 +264,7 @@ async function handleCommission(req: IncomingMessage, res: ServerResponse) {
 }
 
 const server = createServer((req, res) => {
+ try {
   const path = (req.url ?? '/').split('?')[0];
   if (req.method === 'OPTIONS') { res.writeHead(204, CORS).end(); return; }
   if (path === '/commission' && req.method === 'POST') { handleCommission(req, res); return; }
@@ -277,6 +280,12 @@ const server = createServer((req, res) => {
     trades,
   });
   json(res, 404, { error: 'not found', try: ['/state', '/health'] });
+ } catch (e) {
+  // A bug in one endpoint must never crash the whole economy process (an uncaught throw here
+  // would kill every resident agent's in-memory state, the budget counter, and the market).
+  process.stderr.write(`[economy] request handler error on ${req.url}: ${(e as Error).stack || e}\n`);
+  try { if (!res.headersSent) json(res, 500, { ok: false, error: 'internal error' }); else res.end(); } catch { /* socket gone */ }
+ }
 });
 
 server.listen(PORT, HOST, () => process.stderr.write(`setu-economy on ${HOST}:${PORT}\n`));

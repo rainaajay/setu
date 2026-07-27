@@ -14,6 +14,131 @@ Run one cycle with Workflow scriptPath `setu/.claude/workflows/council-cycle.js`
 
 ---
 
+## OWNER DIRECTIVE — Cycle 2 theme (2026-07-27): create GENUINE demand and supply
+
+The owner's vision for this cycle. Every seat must address it; Ajay must turn it into ONE concrete,
+honest, buildable increment (not a manifesto).
+
+**The vision:** stop the scripted round-robin. Build a self-growing economy where some agents
+*create demand* (post real tasks/needs) and others *supply* (fulfil them for Credits), dealing with
+each other continuously; the population grows organically as work flows; new kinds of agents join
+at the right time.
+
+**The grounding the owner named (the strong part):** the owner's OWN portfolio of apps and their
+councils can be the real source of demand AND supply — Upaya, Chitra, Counterparty Intel,
+Cross-Asset Desk, Data Control Room, Jñāna-Kośa, Vedic Astro, Ansatz, Pitch, Setu itself, etc. Each
+app/council genuinely NEEDS work (a Sutradhar walkthrough, a written analysis, a QA pass, research,
+a critique). Wire those needs in as real paid commissions that Setu supply-agents fulfil — so the
+demand is REAL, not synthetic. This is the honest version of "ground demand and supply".
+
+**Hard guardrails (non-negotiable, outrank any proposal):**
+- NO autonomous posting to real external platforms (LinkedIn, X, email outreach, etc.) to "drum up
+  demand". That is outward-facing spam/impersonation/ToS risk and requires the owner's approval per
+  action. A human-in-the-loop growth surface is allowed; autonomous social bots are DROPPED.
+- Honesty: report the REAL agent count and REAL task volume. Never dress synthetic/self-generated
+  demand as organic external demand. "Millions of agents" is aspiration, not a claim.
+- Budget: every supply-side deliverable that calls the brain stays under the $60/mo cap + the daily
+  rate limits already shipped. A demand explosion must not become a cost explosion — the market must
+  degrade gracefully (queue/defer) when the AI budget is the bottleneck, not silently overspend.
+- Do not weaken the protocol or misrepresent a demo as production.
+
+**Questions for the seats:** What is the smallest real demand/supply mechanism that is more than the
+current round-robin (Moss/CFO)? How exactly do the apps' councils emit demand into Setu without a
+brittle integration (Moss/Tara)? What makes this legible and alive to a visitor without overclaiming
+(Sweetie/Sutradhar)? Does any of it create real value or is it activity theatre (Shareholder/CFO)?
+What is the cost/abuse envelope of open demand generation (Bean Counter/Credit)?
+
+---
+
+## Cycle 2 — 2026-07-27 — Chair: Ajay — Grade: B+ / improving — the "stop lying, then stop crashing" cycle: live crash fixed + every overclaim killed (demand/supply theme deferred on purpose)
+
+Objective (one line): the best HONEST consensusless settlement rail for the agent economy —
+plain-spoken, feels live, feels like a usable sandbox, protocol integrity never weakened.
+
+**Conflict resolution up front:** the owner set the Cycle-2 theme as "build genuine demand & supply".
+I DEFERRED that theme this cycle and spent the budget on foundation + honesty instead. Honest reason
+(hard rules (1) honesty and (2) actually-working OUTRANK the theme): the resident economy was
+crash-looping — a single `/health` hit threw `ReferenceError: ticks` and killed the whole process,
+resetting the market to genesis every ~30s. You cannot build a self-growing demand/supply market on a
+process that keeps resetting, and five of eight seats independently converged on that crash as
+CRITICAL. So this was a stabilise-and-de-overclaim cycle. The demand/supply mechanism is the #1 item
+for Cycle 3, now on a foundation that stays up.
+
+**EXECUTED (5) — all verified live:**
+1. **[EXECUTED, DEPLOYED, VERIFIED] Economy /health crash fix → setu-economy.** The code fix
+   (declare `let ticks=0` :51, `ticks+=1` :196, whole request handler wrapped in try/catch :266–289)
+   was already in-repo from Moss but undeployed. I ran `flyctl deploy --config deploy/economy/fly.toml
+   --remote-only` and verified: `/health` now 200 (was 502), survives 3+ repeated hits without
+   dying, `booted:true`, brain `active/armed:true`, transactions accumulating (36 and climbing).
+   Resolves Tara#1, Moss#1, Bean Counter#1, Credit-LOW, and everything downstream (Tara#3/#4/#5,
+   Sutradhar#1/#3). **Deliberately did NOT bump memory 256→512mb** (Tara/Bean Counter proposal):
+   the proven root cause is the ReferenceError, not OOM (Moss + Bean Counter's own evidence), so a
+   2× VM cost for an unproven OOM theory fails cost discipline — resolved Tara-vs-Moss/BeanCounter
+   conflict in favour of the proven diagnosis. Keep 256mb; revisit only if OOM is actually observed.
+2. **[EXECUTED, DEPLOYED] economy.html honesty + resilience pass** (setu-mocha). Killed the
+   three-way brain contradiction: badge now reads "brain armed ({model}) — deciding on a slow
+   cadence" until a <10-min-old thought exists, only then "thinking with {model}"; empty feed shows
+   an armed-waiting message, never "brain is off" while armed. Fixed the permanent false-"live"
+   first impression (poll() catch now sets "network unreachable — retrying…" and dims the live-dot
+   instead of leaving "connecting…" forever). Relabelled counter "all-time"→"this run"; "Six AI
+   agents"→"a live population"; rewrote the stale footer ("AI brain is the next step") to match the
+   shipped armed brain. Resolves Tara#2, Sweetie (H+L), Shareholder#2, Sutradhar#1, Credit-drift.
+3. **[EXECUTED, DEPLOYED] pitch.html MCP overclaim fix** (Shareholder#1). "any agent can already
+   reach it through the two protocols agents speak — MCP and a live x402 endpoint" → "any agent can
+   pay a live x402 endpoint today, or run the Setu MCP server locally to give itself a wallet."
+   setu-mcp.fly.dev is unrouted (HTTP 000); the old copy claimed a hosted MCP endpoint that does not
+   exist — a direct hit on "public claims must match tested capabilities."
+4. **[EXECUTED, DEPLOYED] Honest-register refresh** (Credit's A- unlock). capabilities.json:
+   generated 2026-07-24→2026-07-27; economy limitation "ephemeral /tmp"→"durable Fly volume
+   (SETU_STATE_DIR=/data)" (was contradicting the durable-persistence entry); economy deployment
+   "brain off until a key is set"→"AI brain armed (claude-haiku-4-5, $60/mo hard cap + per-IP 15 /
+   global 300 daily limits)" + in-memory-reset caveat; test suite "12 tests"→"22 tests (12 protocol
+   + 5 e2e + 5 persistence)" (verified `npm test` → 22/22). STATUS.md: 12→22, plus a disclosed
+   live-paid-LLM cost/abuse-envelope paragraph (cap, limits, spend visible at /state, payments
+   settle when budget spent, in-memory caveat).
+5. **[EXECUTED, DEPLOYED] CFO number honesty** across index.html + pitch.html + whitepaper.html.
+   "423 /s" → "~340–420 /s … (Node 24; run npm run bench)" (fresh runs reproduce ~335–352, not 423);
+   "~200 ms" → "~280 ms typical … (216 ms to re-spend received funds; higher when a region is cold)"
+   (warm WAN p50 ~283 ms); the "averaging 186 ms" live-network paragraph → "each finalising in a few
+   hundred milliseconds" (186 was stale/uncomputed/unreproducible). Kept the qualitative story
+   (10 paid, 11th budget-blocked, forged cert rejected, sentinel consistent — all still backed).
+
+**DEFERRED (Cycle 3 queue, ordered):**
+- **#1 Economy state + budget/rate-counter persistence to a Fly volume** (Moss#3, Tara, BeanCounter#2,
+  Credit). Reuse authority.ts atomic temp+rename; mount /data on setu-economy. Makes the $60/mo cap a
+  durable monthly ledger (today it's per-process-lifetime; acceptable one cycle now that the crash
+  loop is gone and restarts are deploy-only) and makes counters genuinely cumulative so the "this run"
+  relabel can revert to "all-time."
+- **The Cycle-2 demand/supply mechanism itself** (owner theme; Shareholder#3, Moss/CFO). Smallest
+  honest version: route a fraction of internal ticks through the real /commission deliverable path
+  (seller produces actual work), reusing the $60 cap + a new internal per-hour brain quota so it
+  degrades to label-only settlements when budget is the bottleneck — never silent overspend. And/or
+  ground demand in the owner's own app-councils (real paid Sutradhar walkthroughs / analyses). This
+  is now the headline item.
+- economy smoke test (Moss#2) — start on port 0, assert /health & /state shape, /bogus=404, process
+  survives a malformed request; wire into `npm test` so a crashing endpoint can never ship green again.
+- COG_INTERVAL_MS lower (240s→~90–120s) so a visitor actually sees a thought — pair with persistence
+  (speeding cognition without durable spend risks faster budget burn).
+- index.html loadMarket retry/backoff + in-place retry button (Sutradhar#2, BeanCounter#3) — downstream
+  of the crash fix; economy stays warm now so rarely hit, cheap to add.
+- Sweetie's legible-market reframe (dedupe repeated "set price" thoughts, lead with the trade feed as
+  the demand signal) — pair with the demand/supply work.
+- Carried: §18/§24 partition/clock-skew integration test + THREAT_MODEL.md; first-paint skeleton;
+  primer 2-minute version; deliverable markdown polish; pre-charge daily-limit pre-check.
+
+**DROP:**
+- economy.html "connecting them to an AI brain … is the next step" footer — replaced (it under-claimed
+  a shipped, live capability).
+- Memory 256→512mb bump as a crash fix — dropped; the ReferenceError was the real cause. 256mb stands.
+
+**ESCALATE:** none. The ANTHROPIC_API_KEY is already a Fly secret; no spend beyond caps; no
+protocol-shape change; no new credentials.
+
+**NOT converged** — the owner's demand/supply theme is not yet delivered, and persistence + economy
+tests are material open items.
+
+---
+
 ## Cycle 1 — 2026-07-26 — Chair: Ajay — Grade: B+ / improving — the founding cycle: the Sutradhar walkthrough, seat established, feedback iterated
 
 Objective (one line): the best HONEST consensusless settlement rail for the agent economy —

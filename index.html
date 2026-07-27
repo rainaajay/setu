@@ -107,8 +107,8 @@
     software.</li>
   </ul>
   <p style="margin-top:14px">Measured on the live network: a buyer agent made 10 delegated,
-  invoice-bound micropayments averaging 186&nbsp;ms finality each, was stopped by its budget
-  policy on the 11th, a forged certificate was rejected, and the sentinel found every
+  invoice-bound micropayments each finalising in a few hundred milliseconds, was stopped by its
+  budget policy on the 11th, a forged certificate was rejected, and the sentinel found every
   region consistent.</p>
 </section>
 
@@ -413,8 +413,8 @@
 <section>
   <h2>Measured on the current build</h2>
   <div class="stats">
-    <div class="stat"><b>4 ms</b><span>settlement on one machine; ~200 ms across four regions on three continents (higher when a region is cold)</span></div>
-    <div class="stat"><b>423 /s</b><span>transfers per second, 1,000 of 1,000 settled, on a single laptop</span></div>
+    <div class="stat"><b>4 ms</b><span>settlement on one machine; ~280 ms typical across four regions on three continents (216 ms to re-spend received funds; higher when a region is cold)</span></div>
+    <div class="stat"><b>~340–420 /s</b><span>transfers per second, all settled, on a single laptop (Node 24; run npm run bench)</span></div>
     <div class="stat"><b>3 of 4</b><span>signatures make a payment final; one authority can fail or lie without effect</span></div>
     <div class="stat"><b>0</b><span>fees, and 0 runtime dependencies. Spam is priced by rate limits, not gas</span></div>
   </div>
@@ -456,7 +456,7 @@
     <tr><td>v0 <span class="done">done</span></td><td>Settlement core with adversarial test suite: double-spend, Byzantine authority, authority outage, spam.</td></tr>
     <tr><td>v0.2 <span class="done">done</span></td><td>Authorities as separate OS processes over real sockets. 4&nbsp;ms average finality.</td></tr>
     <tr><td>v0.3 <span class="done">done</span></td><td>Trust plane: peer-to-peer identity and attestations, offline-first, Byzantine-tolerant.</td></tr>
-    <tr><td>v0.35 <span class="done">done</span></td><td>Functional: persistent authority state, long-running devnet, wallet CLI, 423 transfers/second benchmarked.</td></tr>
+    <tr><td>v0.35 <span class="done">done</span></td><td>Functional: persistent authority state, long-running devnet, wallet CLI, ~340–420 transfers/second benchmarked (single laptop).</td></tr>
     <tr><td>Deploy <span class="done">done</span></td><td>Four authorities live on Fly.io across London, Frankfurt, Washington, Singapore.</td></tr>
     <tr><td>v0.4</td><td>Zero-knowledge receipts — prove "balance at least X" without revealing the balance.</td></tr>
     <tr><td>v0.5</td><td>Post-quantum signatures behind the existing crypto seam; authority rotation.</td></tr>
