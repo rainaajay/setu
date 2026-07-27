@@ -86,10 +86,22 @@ This delivers the owner's Cycle-2 theme, now that Cycle 2 made the economy stop 
 needs) but self-generated inside Setu — labelled as such, never dressed as organic external demand.
 Population count and task volume are the real numbers from /state; "millions of agents" stays aspiration.
 
-**Cycle 3 open / next:** wire a genuinely EXTERNAL demand source (one real app council actually
-emitting a task, rather than a stand-in persona); economy state persistence to a Fly volume (Cycle-3
-queue #1 — so counters + the monthly budget ledger survive restarts); economy smoke test in `npm test`;
-optional human-in-the-loop growth surface (draft-and-approve, never autonomous).
+**Cycle 3 execution — chair (Ajay) ranked the queue 2026-07-27; order: C(smoke test) → B(persistence)
+→ A(external demand) → E(liveness polish) → D(growth surface). Progress:**
+- **[DONE] #1 (C) economy smoke test** — commit 3b12dae. Hermetic (`SETU_ECONOMY_TEST=1` skips
+  boot/listen; module exports `server`); asserts /health, /state shape, /commission 400/402, /bogus
+  404, and that a malformed request can't crash the process. `npm test` 22→23 green.
+- **[DONE] #2 (B) durable economy state on a Fly volume** — commit 5c0e997. snapshot/saveState (atomic
+  temp+rename, 15s) + loadState on boot; persists agents (SetuWallet.export/load), balances, counters,
+  tasks/showcase, AND the spentUsd budget ledger; monthTick() makes the $/mo cap truly monthly.
+  fly.toml mounts /data (volume setu_economy_data, single machine). Verified live: machine restart →
+  "restored 6 agents + 5 clients (tx 37, spent $0.01)", tx continued 37→48, no genesis reset.
+- **[NEXT] #3 (A) genuinely EXTERNAL demand** — one of the owner's real app councils actually emitting
+  a task into Setu, not a stand-in persona. Proposed shape: a `POST /demand` endpoint (shared-token
+  auth) on setu-economy; then wire ONE app's council-cycle.js (Chitra or Upaya cleanest) to post a
+  real need it surfaces. Cross-repo — needs the owner's nod on which app + that we touch that repo.
+- #4 (E) liveness polish (COG_INTERVAL_MS down, loadMarket backoff, first-paint skeleton); #5 (D)
+  human-in-the-loop growth surface (draft-and-approve — NEVER autonomous posting).
 
 ---
 
