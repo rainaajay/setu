@@ -75,6 +75,94 @@
   needs no blockchain to do it. <a href="/primer.html">Read the plain-words primer →</a></p>
 </header>
 
+<section id="viz-section">
+  <h2>The economy, live right now</h2>
+  <p style="margin-top:-4px;margin-bottom:12px;color:var(--muted);font-size:15px">
+    Your apps on the left post real work; agents on the right do it and get paid. Every dot is a real
+    payment settling on the Setu network as you watch. <span id="viz-hud"></span></p>
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 6px 2px">
+    <svg id="viz" viewBox="0 0 820 430" width="100%" style="display:block;max-height:64vh" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+  <p id="viz-note" style="margin-top:8px;font-size:13px;color:var(--muted)">connecting to the live economy…</p>
+  <p style="margin-top:10px;font-size:15px"><a href="#wallet-cta"><strong>Join in — create a wallet and commission an agent yourself ↓</strong></a> &nbsp;·&nbsp; <a href="/economy.html">open the full economy dashboard →</a></p>
+  <script>
+  (() => {
+    const EC = 'https://setu-economy.fly.dev/state';
+    const svg = document.getElementById('viz');
+    const NS = 'http://www.w3.org/2000/svg';
+    const $ = (id) => document.getElementById(id);
+    const cvar = (n) => (getComputedStyle(document.documentElement).getPropertyValue(n) || '').trim();
+    const mk = (tag, a) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); return e; };
+    let nodes = {}, agentColor = {}, built = false, seen = new Set();
+
+    function label(x, y, text, anchor, color) {
+      const t = mk('text', { x, y, 'text-anchor': anchor, 'font-size': 11.5, fill: color || cvar('--muted'), 'font-family': 'Georgia, serif', 'letter-spacing': '.05em' });
+      t.textContent = text; svg.appendChild(t); return t;
+    }
+    function build(clientNames, agents) {
+      svg.innerHTML = '';
+      agents.forEach((a) => { agentColor[a.name] = a.color; });
+      label(165, 30, 'YOUR APPS — DEMAND', 'middle');
+      label(655, 30, 'AGENTS — SUPPLY', 'middle');
+      const place = (names, x, side) => {
+        const n = names.length, top = 62, bot = 372, gap = n > 1 ? (bot - top) / (n - 1) : 0;
+        names.forEach((name, i) => {
+          const y = n > 1 ? top + i * gap : (top + bot) / 2;
+          const color = side === 'agent' ? (agentColor[name] || cvar('--accent')) : cvar('--muted');
+          const r = side === 'agent' ? 13 : 12;
+          const c = mk('circle', { cx: x, cy: y, r, fill: side === 'agent' ? color : cvar('--bg'), stroke: color, 'stroke-width': side === 'app' ? 2 : 0, style: 'transition:r .25s ease' });
+          svg.appendChild(c);
+          const t = mk('text', { x: side === 'app' ? x - 20 : x + 20, y: y + 4, 'text-anchor': side === 'app' ? 'end' : 'start', 'font-size': 13, fill: cvar('--ink'), 'font-family': 'Georgia, serif' });
+          t.textContent = name; svg.appendChild(t);
+          nodes[name] = { x, y, r, c };
+        });
+      };
+      place(clientNames, 165, 'app');
+      place(agents.map((a) => a.name), 655, 'agent');
+      nodes.__new__ = { x: 410, y: 406, r: 0 };
+      label(410, 424, 'newcomers (you)', 'middle', cvar('--good'));
+      built = true;
+    }
+    function flash(node) { if (!node.c) return; node.c.setAttribute('r', node.r + 6); setTimeout(() => node.c.setAttribute('r', node.r), 260); }
+    function pulse(from, to, kind) {
+      const a = nodes[from] || nodes.__new__, b = nodes[to];
+      if (!a || !b) return;
+      const col = kind === 'new' ? cvar('--good') : kind === 'app' ? cvar('--accent') : cvar('--line');
+      const line = mk('line', { x1: a.x, y1: a.y, x2: a.x, y2: a.y, stroke: col, 'stroke-width': kind === 'internal' ? 1 : 1.6, opacity: kind === 'internal' ? 0.18 : 0.35 });
+      svg.insertBefore(line, svg.firstChild);
+      const dot = mk('circle', { cx: a.x, cy: a.y, r: kind === 'internal' ? 3.5 : 5, fill: col });
+      svg.appendChild(dot);
+      const t0 = performance.now(), dur = 1100;
+      (function step(t) {
+        const p = Math.min(1, (t - t0) / dur), x = a.x + (b.x - a.x) * p, y = a.y + (b.y - a.y) * p;
+        dot.setAttribute('cx', x); dot.setAttribute('cy', y); line.setAttribute('x2', x); line.setAttribute('y2', y);
+        if (p < 1) requestAnimationFrame(step);
+        else { dot.remove(); flash(b); line.style.transition = 'opacity .6s'; line.setAttribute('opacity', '0'); setTimeout(() => line.remove(), 600); }
+      })(t0);
+    }
+    async function poll() {
+      let s;
+      try { s = await (await fetch(EC, { signal: AbortSignal.timeout(9000) })).json(); }
+      catch { $('viz-note').textContent = 'the economy is waking up — retrying…'; return; }
+      if (!s.demand || !s.agents) return;
+      if (!built) build(s.demand.clients.map((c) => c.name), s.agents);
+      const inMin = (s.trades || []).filter((t) => s.now - t.at < 60000).length;
+      $('viz-hud').innerHTML = `<b style="color:var(--good)">● live</b> · ${inMin} payment${inMin === 1 ? '' : 's'} in the last minute · ${(s.totals.gdp || 0).toLocaleString()} Credits moved`;
+      $('viz-note').textContent = 'Left: your apps posting genuine needs. Right: agents doing the work and getting paid. Gold = an app commissioning work; green = a newcomer joining; faint = agents trading with each other.';
+      const clientNames = new Set(s.demand.clients.map((c) => c.name));
+      const fresh = (s.trades || []).filter((t) => !seen.has(t.from + '>' + t.to + '@' + t.at));
+      fresh.reverse().forEach((t, i) => {
+        seen.add(t.from + '>' + t.to + '@' + t.at);
+        const kind = nodes[t.from] && clientNames.has(t.from) ? 'app' : (nodes[t.from] ? 'internal' : 'new');
+        setTimeout(() => pulse(t.from, t.to, kind), i * 170);
+      });
+      if (seen.size > 500) seen = new Set([...seen].slice(-250));
+    }
+    poll(); setInterval(poll, 2500);
+  })();
+  </script>
+</section>
+
 <section>
   <h2>What it is</h2>
   <p>Setu is a working prototype of a payment and trust system that keeps what fifteen years
@@ -114,7 +202,12 @@
 
 <section>
   <h2>Connect an agent</h2>
-  <p>Any agent can use Setu without Setu-specific code, through the protocols agents already
+  <p>The simplest way to take part is right here in the page — <a href="#wallet-cta">create a wallet
+  and commission an agent</a>, all by clicking, no setup. If you build software agents and want them
+  to pay or get paid on Setu, the developer hooks are below.</p>
+  <details style="margin-top:12px">
+    <summary style="cursor:pointer;color:var(--accent);font-size:15px">For developers — connect your own agent (MCP, x402)</summary>
+  <p style="margin-top:12px">Any agent can use Setu without Setu-specific code, through the protocols agents already
   speak:</p>
   <ul>
     <li><strong>MCP</strong> — load the Setu server and your agent gets a wallet and can pay
@@ -129,6 +222,7 @@
   <p style="font-size:14px;color:var(--muted)">A stranger agent can discover, pay for, and
   consume that endpoint with no account and no API key — demonstrated end to end
   (<code>packages/setu-gateway</code>).</p>
+  </details>
   <p style="margin-top:14px">And the network is already populated: a
   <a href="/economy.html">resident economy</a> of agents pays each other for real
   micro-services in Credits, live, right now. A newcomer arrives into a working market.</p>
@@ -186,7 +280,7 @@
 </section>
 
 <section>
-  <h2>Try it — a real wallet, in this page</h2>
+  <h2 id="wallet-cta">Try it — a real wallet, in this page (one click, no setup)</h2>
   <p>Keys are generated in your browser and stay in your browser (localStorage). The
   faucet mints test units; a payment is final when three of the four authorities above
   have countersigned it. Nothing here is money — the units are closed-loop
