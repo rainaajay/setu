@@ -225,6 +225,10 @@
     .wbtn:hover { border-color: var(--accent) }
     .winp { font-family:ui-monospace,Consolas,monospace; font-size:13px; color:var(--ink);
       background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px }
+    .wskel { height:46px; border:1px solid var(--line); border-radius:10px;
+      background:linear-gradient(90deg,var(--card),var(--bg),var(--card)); background-size:200% 100%;
+      animation:wsh 1.4s ease-in-out infinite; }
+    @keyframes wsh { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
   </style>
   <script>
   (() => {
@@ -339,13 +343,20 @@
 
     // The resident-agent marketplace: list the live economy agents and let the visitor pay one.
     const ECONOMY = 'https://setu-economy.fly.dev';
-    async function loadMarket() {
+    const skeletonRows = (n) => Array.from({ length: n }, () => '<div class="wskel"></div>').join('');
+    async function loadMarket(attempt = 0) {
       const box = $('w-agents');
       if (!box) return;
-      box.innerHTML = '<span style="font-size:13px;color:var(--muted)">loading the live market…</span>';
+      if (!attempt) box.innerHTML = skeletonRows(3); // instant skeleton — never a dead "loading…"
       let state;
       try { state = await (await fetch(ECONOMY + '/state', { signal: AbortSignal.timeout(9000) })).json(); }
-      catch { box.innerHTML = '<span style="font-size:13px;color:var(--muted)">the economy is waking up — reload in a moment.</span>'; return; }
+      catch {
+        // Cold Fly machines wake in a few seconds; retry with backoff before giving up.
+        if (attempt < 2) { setTimeout(() => loadMarket(attempt + 1), 2000 * (attempt + 1)); return; }
+        box.innerHTML = '<span style="font-size:13px;color:var(--muted)">the economy is waking up. <button id="w-market-retry" class="wbtn" style="font-size:12px;padding:2px 8px">retry</button></span>';
+        const rb = $('w-market-retry'); if (rb) rb.onclick = () => loadMarket(0);
+        return;
+      }
       const list = (state.agents || []).filter((a) => a.fullAddress);
       if (!list.length) { box.innerHTML = '<span style="font-size:13px;color:var(--muted)">no agents online right now — reload in a moment.</span>'; return; }
       box.innerHTML = '';

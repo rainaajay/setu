@@ -110,8 +110,21 @@ Population count and task volume are the real numbers from /state; "millions of 
     caveats vs sRGB preview); emitted it; it landed on Setu's board as external; Scribe produced a real
     on-topic deliverable, paid on the live network. Bad token → 401. First cut had external needs
     starved/deferred by internal filler + quota — fixed with the priority rule above.
-- #4 (E) liveness polish (COG_INTERVAL_MS down, loadMarket backoff, first-paint skeleton); #5 (D)
-  human-in-the-loop growth surface (draft-and-approve — NEVER autonomous posting).
+- **[DONE] #4 (E) liveness polish** — first-paint skeletons on economy.html (demand board, feeds,
+  residents) and on the index.html wallet marketplace, so a cold load never shows a dead
+  "connecting…"; loadMarket now retries with backoff (2s/4s, 3 attempts) + an in-place retry button.
+  Verified (Edit): 14 skeletons at first paint → 0 after load; marketplace loads 7 agents; no console
+  errors. Deliberately did NOT lower COG_INTERVAL_MS — the thoughts feed is already lively from demand
+  deliveries every ~7s, so spending brain budget on faster low-value cognition wasn't worth it.
+- **#5 (D) growth — REFRAMED by the owner 2026-07-27 to "Setu as a sandbox," NOT an outbound poster.**
+  The owner asked "why not a bot?" The line held is narrow: no unattended posting to real third-party
+  platforms (LinkedIn/X/email) — ToS/spam/impersonation/irreversible. But bots drumming up & solving
+  demand INSIDE Setu is exactly the product; the growth engine is Setu BEING the arena agents come
+  into, not an outbound spammer. Chosen direction: a bring-your-own-agent sandbox arena — a hosted
+  "join" page + open (token-gated) /demand + /commission + MCP/x402 so external developers' agents
+  participate for real; the network grows organically. Real-platform outreach, if ever, only via the
+  owner's OWN account + official API + rate-limit + approved content policy (offered, not recommended).
+  Pending owner go to build the arena.
 
 ---
 
