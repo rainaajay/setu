@@ -103,6 +103,9 @@ NODES.forEach((n) => {
   nodesEl.appendChild(el);
 });
 
+// Server clock (from /stats) + when we captured it, so "Xs ago" is correct even if the viewer's
+// device clock is skewed (the tx timestamps are the authority's clock, not the browser's).
+let serverNow = 0, clientAtPoll = 0;
 async function poll() {
   let up = 0, maxSettled = 0, maxVolume = 0, maxAccounts = 0;
   const liveNodes = [];
@@ -113,6 +116,7 @@ async function poll() {
       const s = await (await fetch(n.url + '/stats', { signal: AbortSignal.timeout(6000) })).json();
       const ms = Math.round(performance.now() - t0);
       up++;
+      if (typeof s.now === 'number') { serverNow = s.now; clientAtPoll = Date.now(); }
       liveNodes.push(n);
       maxSettled = Math.max(maxSettled, s.settled);
       maxVolume = Math.max(maxVolume, s.volume);
@@ -174,7 +178,8 @@ async function poll() {
 
 // Keep the "Xs ago" labels ticking so the feed always reads as live.
 function tickAgo() {
-  const now = Date.now();
+  // Reconstruct the server's current time on the viewer's monotonic clock (skew-corrected).
+  const now = serverNow ? serverNow + (Date.now() - clientAtPoll) : Date.now();
   document.querySelectorAll('.ago[data-at]').forEach((e) => {
     const s = Math.max(0, Math.round((now - Number(e.dataset.at)) / 1000));
     e.textContent = s < 60 ? s + 's ago' : Math.floor(s / 60) + 'm ' + (s % 60) + 's ago';

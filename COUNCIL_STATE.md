@@ -61,6 +61,31 @@ What is the cost/abuse envelope of open demand generation (Bean Counter/Credit)?
 
 ---
 
+## Cycle 5 — 2026-07-28 — executed the top of the Cycle-5 queue (owner ran it)
+
+Four items shipped + verified live (economy + 4 authorities + Vercel; npm test 24/24):
+1. **[DONE] Reserve a live-human slice of the hourly brain quota** (Sweetie HIGH — was the #1 item).
+   economy.ts: `INTERNAL_BRAIN_PER_HOUR=6` caps internal (stand-in) deliverables so ≥2 of the 8 hourly
+   slots are always available to a real guest/arena human; `brainQuotaOk(source)` enforces it, guest
+   demand can use any of the 8. /state exposes `internalPerHour`/`humanReserved: 2`. The marquee "drop a
+   need → watch it solved" no longer loses to synthetic filler at 8/8.
+2. **[DONE] Cap the cognition loop** (Bean Counter MED). `COG_PER_HOUR=8` + `cogThisHour` gate on
+   cognitionLoop — every brain path now has a provable per-hour bound under the $60/mo backstop. New
+   hour-counters persisted (snapshot/loadState).
+3. **[DONE] Skew-correct explorer "Xs ago"** (Tara MED). authority.ts stats() now returns `now`
+   (server clock); explorer.html captures serverNow+clientAtPoll and reconstructs server time, so a
+   skewed device clock no longer reads the feed as falsely fresh/stale. Deployed to all 4 authorities.
+4. **[DONE] Reconcile the two WAN latency figures** (CFO LOW). Landing "~280 ms" and whitepaper
+   "~183 ms/hop" unified to "~180 ms warm (p50; higher when cold)" on both — matches a live 179 ms
+   payment and the chained-spend benchmark.
+
+**Still in the Cycle-5 queue:** micro-cache /state ~1s (Bean Counter LOW); delegation-expiry skew
+tolerance + §18 partition/clock-skew integration test + THREAT_MODEL.md (Moss); wire a second app's
+live council (Chitra-pattern). Verified live: /state shows humanReserved 2, /stats has `now`, a normal
+payment settles 4/4.
+
+---
+
 ## Cycle 4 — 2026-07-28 — Chair: Ajay — Grade: B+ / improving — "kill the double-spend, then stop overclaiming the front door"
 
 Objective (one line): the best HONEST consensusless settlement rail for the agent economy —

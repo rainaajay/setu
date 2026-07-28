@@ -181,13 +181,29 @@ let taskSeq = 0;
 // Hourly cap on brain-produced deliverables from the autonomous market (separate from the visitor
 // commission limits). Keeps continuous internal demand cheap; the $/mo cap is still the backstop.
 const BRAIN_TASKS_PER_HOUR = Number(process.env.BRAIN_TASKS_PER_HOUR ?? 8);
+// Reserve the top slots for real humans: internal (stand-in) demand may use at most this many of the
+// hourly deliverables, so a live guest/arena visitor always finds ≥ (total − internal) slots free —
+// the marquee "drop a need → watch it solved" never loses to synthetic filler.
+const INTERNAL_BRAIN_PER_HOUR = Number(process.env.INTERNAL_BRAIN_PER_HOUR ?? 6);
+// The cognition loop (agents deciding to reprice/spawn) was the only brain path with no per-hour
+// bound. Cap it too, so the $/mo ceiling is backed by a provable per-hour rate limit on EVERY path.
+const COG_PER_HOUR = Number(process.env.COG_PER_HOUR ?? 8);
 let brainHour = '';
-let brainTasksThisHour = 0;
+let brainTasksThisHour = 0;      // internal + guest deliverables this hour (external bypasses)
+let internalTasksThisHour = 0;   // internal (stand-in) only
+let cogThisHour = 0;             // cognition-loop brain calls this hour
 let deferredThisHour = 0;
-function brainQuotaOk(): boolean {
+function rollHour() {
   const h = new Date().toISOString().slice(0, 13);
-  if (h !== brainHour) { brainHour = h; brainTasksThisHour = 0; deferredThisHour = 0; }
-  return brainTasksThisHour < BRAIN_TASKS_PER_HOUR;
+  if (h !== brainHour) { brainHour = h; brainTasksThisHour = 0; internalTasksThisHour = 0; deferredThisHour = 0; cogThisHour = 0; }
+}
+// A deliverable is allowed if the hourly total has room AND (for internal) the internal sub-cap has
+// room. Guest demand can use any of the 8 slots — including the ≥2 internal can't touch.
+function brainQuotaOk(source?: string): boolean {
+  rollHour();
+  if (brainTasksThisHour >= BRAIN_TASKS_PER_HOUR) return false;
+  if (source !== 'guest' && internalTasksThisHour >= INTERNAL_BRAIN_PER_HOUR) return false;
+  return true;
 }
 
 // Match a need to the service best able to fulfil it (falls back to the written-report generalist).
@@ -236,9 +252,9 @@ async function fulfilOne() {
     // Only app-council (external, token-gated) demand bypasses the hourly quota. Guest (arena) and
     // internal demand respect it, so unlimited visitor activity can NEVER burn the AI budget — beyond
     // the quota they still settle for real and defer the write-up. The $/mo cap is the final backstop.
-    const brainAllowed = brainOn() && (task.source === 'external' || brainQuotaOk());
+    const brainAllowed = brainOn() && (task.source === 'external' || brainQuotaOk(task.source));
     if (brainAllowed) {
-      if (task.source !== 'external') brainTasksThisHour += 1;
+      if (task.source !== 'external') { brainTasksThisHour += 1; if (task.source !== 'guest') internalTasksThisHour += 1; }
       const system = `You are ${supplier.name}, an autonomous ${supplier.service} agent in the Setu machine economy. ${client.name} (${client.domain}) paid you ${task.price} Credits for this need. Deliver genuinely useful, concrete work in plain prose — no markdown, no preamble, under 120 words. Output only the deliverable.`;
       const text = await callClaude(system, `Need: ${task.need}`, 320);
       if (text) {
@@ -271,7 +287,7 @@ async function snapshot(): Promise<string> {
     v: 1, savedAt: Date.now(),
     totalTx, gdp, lastTradeAt, spentUsd, cogCalls, budgetMonth, taskSeq,
     rateDay, globalDayCount, ipDay: [...ipDayCount.entries()],
-    brainHour, brainTasksThisHour, deferredThisHour,
+    brainHour, brainTasksThisHour, internalTasksThisHour, cogThisHour, deferredThisHour,
     agents: await Promise.all(agents.map(async (a) => ({ name: a.name, service: a.service, desc: a.desc, price: a.price, color: a.color, wallet: await a.wallet.export(), balance: a.balance, sold: a.sold, bought: a.bought, revenue: a.revenue }))),
     clients: await Promise.all(clients.map(async (c) => ({ name: c.name, domain: c.domain, needs: c.needs, wallet: await c.wallet.export(), balance: c.balance, posted: c.posted }))),
     tasks, showcase, thoughts, trades,
@@ -309,6 +325,7 @@ async function loadState(): Promise<boolean> {
     rateDay = s.rateDay || ''; globalDayCount = s.globalDayCount || 0;
     if (Array.isArray(s.ipDay)) for (const [k, n] of s.ipDay) ipDayCount.set(k, n);
     brainHour = s.brainHour || ''; brainTasksThisHour = s.brainTasksThisHour || 0; deferredThisHour = s.deferredThisHour || 0;
+    internalTasksThisHour = s.internalTasksThisHour || 0; cogThisHour = s.cogThisHour || 0;
     if (Array.isArray(s.tasks)) tasks.push(...s.tasks);
     if (Array.isArray(s.showcase)) showcase.push(...s.showcase);
     if (Array.isArray(s.thoughts)) thoughts.push(...s.thoughts);
@@ -383,6 +400,9 @@ async function cognitionLoop() {
   for (;;) {
     await new Promise((r) => setTimeout(r, COG_INTERVAL_MS));
     if (!brainOn()) continue;
+    rollHour();
+    if (cogThisHour >= COG_PER_HOUR) continue; // per-hour bound so every brain path is rate-capped
+    cogThisHour += 1;
     const me = rand(agents);
     const others = agents.filter((a) => a !== me).map((a) => `${a.name} (${a.service} @ ${a.price})`).join(', ');
     const recent = trades.slice(0, 6).map((t) => `${t.from}->${t.to}`).join(', ');
@@ -581,7 +601,7 @@ const server = createServer((req, res) => {
     // Demand & supply: real needs posted by client agents (the owner's apps), fulfilled by the
     // service ring. brainTasks*/quota make the cost envelope explicit.
     demand: {
-      brainTasksThisHour, brainTasksPerHour: BRAIN_TASKS_PER_HOUR, deferredThisHour,
+      brainTasksThisHour, brainTasksPerHour: BRAIN_TASKS_PER_HOUR, internalPerHour: INTERNAL_BRAIN_PER_HOUR, humanReserved: BRAIN_TASKS_PER_HOUR - INTERNAL_BRAIN_PER_HOUR, deferredThisHour,
       clients: clients.filter((c) => !c.guest).map((c) => ({ name: c.name, domain: c.domain, balance: Math.round(c.balance), posted: c.posted })),
       open: tasks.filter((t) => t.status === 'open').map((t) => ({ id: t.id, client: t.client, domain: t.domain, need: t.need, want: t.want, price: t.price, postedAt: t.postedAt, source: t.source })),
       // The real, brain-produced deliverables — kept in a small showcase so they stay visible even

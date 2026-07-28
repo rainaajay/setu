@@ -568,7 +568,7 @@
 <section>
   <h2>Measured on the current build</h2>
   <div class="stats">
-    <div class="stat"><b>~30 ms</b><span>in-process finality, four authorities on one machine (<code>npm run demo</code>); ~280 ms typical across four regions on three continents (216 ms to re-spend received funds; higher when a region is cold)</span></div>
+    <div class="stat"><b>~30 ms</b><span>in-process finality, four authorities on one machine (<code>npm run demo</code>); ~180 ms warm across four regions on three continents (p50, matches the 183 ms/hop chained-spend benchmark; 216 ms to re-spend received funds; higher when a region is cold)</span></div>
     <div class="stat"><b>~340–420 /s</b><span>transfers per second, all settled, on a single laptop (Node 24; run npm run bench)</span></div>
     <div class="stat"><b>3 of 4</b><span>signatures make a payment final; one authority can fail or lie without effect</span></div>
     <div class="stat"><b>0</b><span>fees, and 0 runtime dependencies. Spam is priced by rate limits, not gas</span></div>

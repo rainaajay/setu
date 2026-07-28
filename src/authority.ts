@@ -152,12 +152,13 @@ export class Authority {
     return { balance: a?.balance ?? 0, nextSeq: a?.nextSeq ?? 0 };
   }
 
-  stats(): { name: string; accounts: number; settled: number; volume: number } {
+  stats(): { name: string; accounts: number; settled: number; volume: number; now: number } {
     return {
       name: this.name,
       accounts: this.accounts.size,
       settled: this.settledCount,
       volume: this.volume,
+      now: Date.now(), // server clock, so a viewer can skew-correct "Xs ago" against their own clock
     };
   }
 
