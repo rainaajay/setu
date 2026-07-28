@@ -177,7 +177,8 @@ function renderDemand() {
   const dm = (state && state.demand) || {};
   if ($('d-quota')) $('d-quota').textContent = dm.brainTasksPerHour ?? 8;
   if ($('d-used')) $('d-used').textContent = dm.brainTasksThisHour ?? 0;
-  const ext = (t) => t.source === 'external' ? ' <span style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--good);border:1px solid var(--good);border-radius:6px;padding:1px 5px;white-space:nowrap">external · real app</span>' : '';
+  const badge = (txt, col) => ` <span style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:${col};border:1px solid ${col};border-radius:6px;padding:1px 5px;white-space:nowrap">${txt}</span>`;
+  const ext = (t) => t.source === 'external' ? badge('external · real app', 'var(--good)') : t.source === 'guest' ? badge('guest · newcomer', 'var(--accent)') : '';
   const open = dm.open || [];
   $('demand-open').innerHTML = open.length ? open.map((t) => `
     <div class="tx"><div class="who"><b>${escapeHtml(t.client)}</b> needs <b>${escapeHtml(t.want)}</b>${ext(t)}</div>

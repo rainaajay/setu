@@ -57,6 +57,10 @@ test('economy service smoke test (offline, no boot)', async () => {
     const d401 = await fetch(base + '/demand', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ need: 'x' }) });
     assert.equal(d401.status, 401);
 
+    // /guest-demand with an empty need -> 400 (validated before any network/faucet, so hermetic)
+    const g400 = await fetch(base + '/guest-demand', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) });
+    assert.equal(g400.status, 400);
+
     // unknown path -> 404
     const nf = await fetch(base + '/bogus');
     assert.equal(nf.status, 404);

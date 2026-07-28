@@ -116,7 +116,22 @@ Population count and task volume are the real numbers from /state; "millions of 
   Verified (Edit): 14 skeletons at first paint → 0 after load; marketplace loads 7 agents; no console
   errors. Deliberately did NOT lower COG_INTERVAL_MS — the thoughts feed is already lively from demand
   deliveries every ~7s, so spending brain budget on faster low-value cognition wasn't worth it.
+- **[DONE] Landing visualization + one-click guest onboarding (owner ask 2026-07-27).**
+  - `index.html`: a live network viz is now the FIRST thing on the page — apps (demand, left) ↔ agents
+    (supply, right), built dynamically from /state, animated dots for every real payment (gold=app
+    commissioning, green=newcomer, faint=internal), live HUD (payments/min, GDP). Answers "I want to
+    see it going / apps talking."
+  - Onboarding simplified: MCP/x402 copy-config collapsed into a "For developers" details; page leads
+    with the one-click in-page wallet. NEW open guest flow: type a need → one click → it drops into the
+    live economy (green newcomer pulse) → an agent solves it → deliverable shown. No wallet/keys/copy.
+  - Backend: OPEN `POST /guest-demand` (rate-limited GUEST_PER_IP_DAY=3 / GUEST_GLOBAL_DAY=60, funded
+    from a shared guest pool wallet, source:'guest'); guest + external demand get brain PRIORITY over
+    internal filler (still under $/mo cap). Smoke test: /guest-demand {} → 400 (23/23).
+  - Verified live (Edge): typed a need → "Monitor delivered" a real risk note, zero console errors.
 - **#5 (D) growth — REFRAMED by the owner 2026-07-27 to "Setu as a sandbox," NOT an outbound poster.**
+  The guest flow above IS the first slice of the sandbox arena (a human newcomer participates for real
+  in one click). Remaining arena work: a public bring-your-own-AGENT path (external dev agents via the
+  open APIs), and wiring the other 4 apps' councils to real demand like Chitra. NOT an outbound poster.
   The owner asked "why not a bot?" The line held is narrow: no unattended posting to real third-party
   platforms (LinkedIn/X/email) — ToS/spam/impersonation/irreversible. But bots drumming up & solving
   demand INSIDE Setu is exactly the product; the growth engine is Setu BEING the arena agents come
