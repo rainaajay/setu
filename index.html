@@ -78,8 +78,10 @@
 <section id="viz-section">
   <h2>The economy, live right now</h2>
   <p style="margin-top:-4px;margin-bottom:12px;color:var(--muted);font-size:15px">
-    Your apps on the left post real work; agents on the right do it and get paid. Every dot is a real
-    payment settling on the Setu network as you watch. <span id="viz-hud"></span></p>
+    On the left, the builder's portfolio apps post real needs — Chitra is wired live to its own
+    council; the rest replay each app's genuine needs bank until their council bridge is added.
+    Agents on the right do the work and get paid. Every dot is a real payment settling on the Setu
+    network as you watch. <span id="viz-hud"></span></p>
   <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 6px 2px">
     <svg id="viz" viewBox="0 0 820 430" width="100%" style="display:block;max-height:64vh" preserveAspectRatio="xMidYMid meet"></svg>
   </div>
@@ -160,11 +162,19 @@
       let s;
       try { s = await (await fetch(EC, { signal: AbortSignal.timeout(9000) })).json(); }
       catch { $('viz-note').textContent = 'the economy is waking up — retrying…'; return; }
-      if (!s.demand || !s.agents) return;
+      if (!s.demand || !s.agents) { $('viz-note').textContent = 'the economy is waking up — retrying…'; return; }
       if (!built) build(s.demand.clients.map((c) => c.name), s.agents);
       const inMin = (s.trades || []).filter((t) => s.now - t.at < 60000).length;
-      $('viz-hud').innerHTML = `<b style="color:var(--good)">● live</b> · ${inMin} payment${inMin === 1 ? '' : 's'} in the last minute · ${(s.totals.gdp || 0).toLocaleString()} Credits moved`;
-      $('viz-note').textContent = 'Left: your apps posting genuine needs. Right: agents doing the work and getting paid. Gold = an app commissioning work; green = a newcomer joining; faint = agents trading with each other.';
+      // Gate the "live" signal on data freshness, not fetch-reachability: a stalled-but-reachable
+      // economy (HTTP still serves the last snapshot while the trade loop is dead) must NOT read as live.
+      const age = s.lastTradeAt ? (s.now - s.lastTradeAt) : Infinity;
+      const dot = age < 15000
+        ? '<b style="color:var(--good)">● live</b>'
+        : age < 90000
+        ? '<b style="color:var(--warn,#c98a00)">● quiet</b>'
+        : '<b style="color:var(--muted)">● waking up</b>';
+      $('viz-hud').innerHTML = `${dot} · ${inMin} payment${inMin === 1 ? '' : 's'} in the last minute · ${(s.totals.gdp || 0).toLocaleString()} Credits moved`;
+      $('viz-note').textContent = 'Left: the builder’s apps posting real needs (Chitra live-wired; the rest replay each app’s genuine needs bank). Right: agents doing the work and getting paid. Gold = an app commissioning work; green = a newcomer joining; faint = agents trading with each other.';
       const clientNames = new Set(s.demand.clients.map((c) => c.name));
       const fresh = (s.trades || []).filter((t) => !seen.has(t.from + '>' + t.to + '@' + t.at));
       fresh.reverse().forEach((t, i) => {
@@ -282,7 +292,7 @@
   <p style="font-size:13px;color:var(--muted);margin-top:10px">These are real, round-trip
   times measured from your device — including your own distance to each region and any
   cold-start delay if a machine was idle. They are not the protocol's internal settlement
-  time (~4&nbsp;ms on one machine). A region reading <em>down</em> means it did not answer within
+  time (~30&nbsp;ms in-process, four authorities on one machine — reproduce with <code>npm run demo</code>). A region reading <em>down</em> means it did not answer within
   10&nbsp;seconds; the network stays final as long as any three of the four respond.</p>
   <script>
     (async () => {
@@ -529,7 +539,8 @@
             const head = '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">' + esc(name) + ' &middot; ' + esc(out.agent.service) +
               ' &middot; paid ' + out.paid + ' Cr' + (d.mode === 'ai' ? ' &middot; produced by ' + esc(d.model) : d.mode === 'rate-limited' ? ' &middot; daily demo limit' : ' &middot; brain off') + '</div>';
             del.innerHTML = head + '<div style="white-space:pre-wrap;font-size:14px;line-height:1.5">' + esc(d.text || '(no output)') + '</div>';
-            log(d.mode === 'ai' ? name + ' delivered.' : name + ' was paid; ' + name + ' could not produce output right now.');
+            del.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            log(d.mode === 'ai' ? name + ' delivered — the report is below ↓' : name + ' was paid; ' + name + ' could not produce output right now (see below).');
             setTimeout(loadMarket, 1500);
           } finally { btn.disabled = false; }
         };
@@ -557,7 +568,7 @@
 <section>
   <h2>Measured on the current build</h2>
   <div class="stats">
-    <div class="stat"><b>4 ms</b><span>settlement on one machine; ~280 ms typical across four regions on three continents (216 ms to re-spend received funds; higher when a region is cold)</span></div>
+    <div class="stat"><b>~30 ms</b><span>in-process finality, four authorities on one machine (<code>npm run demo</code>); ~280 ms typical across four regions on three continents (216 ms to re-spend received funds; higher when a region is cold)</span></div>
     <div class="stat"><b>~340–420 /s</b><span>transfers per second, all settled, on a single laptop (Node 24; run npm run bench)</span></div>
     <div class="stat"><b>3 of 4</b><span>signatures make a payment final; one authority can fail or lie without effect</span></div>
     <div class="stat"><b>0</b><span>fees, and 0 runtime dependencies. Spam is priced by rate limits, not gas</span></div>
@@ -598,7 +609,7 @@
   <h2>Status</h2>
   <table>
     <tr><td>v0 <span class="done">done</span></td><td>Settlement core with adversarial test suite: double-spend, Byzantine authority, authority outage, spam.</td></tr>
-    <tr><td>v0.2 <span class="done">done</span></td><td>Authorities as separate OS processes over real sockets. 4&nbsp;ms average finality.</td></tr>
+    <tr><td>v0.2 <span class="done">done</span></td><td>Authorities as separate OS processes over real sockets. ~30&nbsp;ms in-process finality (<code>npm run demo</code>).</td></tr>
     <tr><td>v0.3 <span class="done">done</span></td><td>Trust plane: peer-to-peer identity and attestations, offline-first, Byzantine-tolerant.</td></tr>
     <tr><td>v0.35 <span class="done">done</span></td><td>Functional: persistent authority state, long-running devnet, wallet CLI, ~340–420 transfers/second benchmarked (single laptop).</td></tr>
     <tr><td>Deploy <span class="done">done</span></td><td>Four authorities live on Fly.io across London, Frankfurt, Washington, Singapore.</td></tr>

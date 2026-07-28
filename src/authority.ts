@@ -211,6 +211,21 @@ export class Authority {
     return { ok: true };
   }
 
+  // Funds already reserved by an in-flight (pending, not-yet-settled) order that draws on
+  // this owner's balance: the owner's OWN direct order PLUS every delegation that spends
+  // the owner's account. A principal's balance is one pool but the first-seen lock is
+  // per-track (the account and each delegation each have their own `pending`), so a direct
+  // spend and a delegated spend on the same balance would each pass an independent balance
+  // check and both settle -> negative balance = value minted. Every balance check subtracts
+  // this. The reservation auto-releases when the pending clears at settle (handleCertificate),
+  // and `pending` is already persisted, so it survives a restart.
+  private reservedAgainst(owner: string): number {
+    let sum = this.accounts.get(owner)?.pending?.order.amount ?? 0;
+    for (const d of this.delegations.values())
+      if (d.principal === owner && d.pending) sum += d.pending.order.amount;
+    return sum;
+  }
+
   protected handleOrder(signedOrder: SignedOrder): OrderResponse {
     const { order, senderSignature } = signedOrder;
     const orderBytes = canonical(order);
@@ -239,7 +254,8 @@ export class Authority {
       if (canonical(account.pending.order) !== orderBytes)
         return { ok: false, error: 'conflicting order pending at this sequence' };
     } else {
-      if (account.balance < order.amount) return { ok: false, error: 'insufficient balance' };
+      if (account.balance - this.reservedAgainst(order.sender) < order.amount)
+        return { ok: false, error: 'insufficient balance' };
       account.pending = signedOrder;
       this.persist(); // the lock must survive a restart, or safety breaks
     }
@@ -275,7 +291,7 @@ export class Authority {
     } else {
       if (d.spent + order.amount > d.total) return { ok: false, error: 'delegation allowance exhausted' };
       const principal = this.accounts.get(d.principal);
-      if (!principal || principal.balance < order.amount)
+      if (!principal || principal.balance - this.reservedAgainst(d.principal) < order.amount)
         return { ok: false, error: 'insufficient principal balance' };
       d.pending = signedOrder;
       this.persist();

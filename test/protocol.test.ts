@@ -212,6 +212,34 @@ test('delegated spending is enforced by the authorities: caps, cumulative total,
   assert.equal((await pay(auths, agent, generateKeyPair().publicKey, 1, seq2, undefined, id2)).certified, false);
 });
 
+// A principal's balance is one pool, but the direct-account lock and each delegation lock
+// are separate tracks. Without a cross-track reservation, a direct spend and a delegated
+// spend on the SAME balance each pass an independent balance check and both settle, driving
+// the balance negative — minting value. This asserts they cannot both certify+settle, that
+// supply is conserved, and that the balance never goes negative (honest concurrent use:
+// principal spends while its own agent spends).
+test('a direct spend and a delegated spend cannot both drain one balance (no cross-track double-spend)', async () => {
+  const { auths } = committee();
+  const principal = generateKeyPair(), agent = generateKeyPair();
+  const merchantA = generateKeyPair(), merchantB = generateKeyPair();
+  auths.forEach((a) => a.fund(principal.publicKey, 100));
+  const id = 'dd';
+  const grant = signAllowance(principal, { id, agent: agent.publicKey, total: 100, maxPerPayment: 100, expiresAt: new Date(Date.now() + 3600_000).toISOString() });
+  await Promise.all(auths.map((a) => a.handle({ type: 'register-delegation', signedAllowance: grant })));
+
+  // Both draw the full 100 from the one principal balance, concurrently.
+  const dseq = auths[0].delegationInfo(id)!.nextSeq;
+  const delegated = pay(auths, agent, merchantA.publicKey, 100, dseq, undefined, id);
+  const direct = pay(auths, principal, merchantB.publicKey, 100, 0);
+  const [rd, rr] = await Promise.all([delegated, direct]);
+
+  const bothSettled = rd.certified && rd.settledOn >= QUORUM && rr.certified && rr.settledOn >= QUORUM;
+  assert.equal(bothSettled, false, 'a direct and a delegated spend must NOT both settle out of one balance');
+  const addrs = [principal, merchantA, merchantB].map((k) => k.publicKey);
+  assert.equal(supply(auths[0], addrs), 100, 'total supply must be conserved — no minting');
+  for (const a of auths) assert.ok(a.balanceOf(principal.publicKey) >= 0, 'principal balance must never go negative');
+});
+
 test('a forged allowance (bad principal signature) is rejected on registration', async () => {
   const { auths } = committee();
   const principal = generateKeyPair(), agent = generateKeyPair();

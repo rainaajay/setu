@@ -12,6 +12,17 @@ The council is the standing refinement body for Setu. Roster (8 seats): **Tara**
 Run one cycle with Workflow scriptPath `setu/.claude/workflows/council-cycle.js` when the owner says
 "continue the cycle" / "agent council".
 
+**CYCLE 4 FOCUS (2026-07-27):** Since Cycle 3, a lot shipped — judge it live: (1) the LANDING now
+opens with a live gamified visualization (apps ↔ agents, animated real payments) + a one-click guest
+"drop a need" flow + the MCP block demoted to a "For developers" fold; (2) ALL 15 portfolio apps are
+now demand clients; (3) THE ARENA (arena.html) lets anyone launch an autonomous agent that commissions
+real work. Key questions for the seats: Is the new landing viz honest and genuinely legible to a
+newcomer, or is it style over substance? Is it honest that 14 of 15 apps post from a real-needs BANK
+while only Chitra is live-council-driven — is that overclaiming "your apps talking"? Does the arena
+feel real and safe (budget can't be burned)? Is the guest/arena "no wallet" path clear? Sutradhar:
+walk the NEW landing + arena.html + economy.html on live. Owner's open choices: council-wire the other
+apps vs build the earning/supplier arena — weigh which matters most.
+
 ---
 
 ## OWNER DIRECTIVE — Cycle 2 theme (2026-07-27): create GENUINE demand and supply
@@ -47,6 +58,106 @@ current round-robin (Moss/CFO)? How exactly do the apps' councils emit demand in
 brittle integration (Moss/Tara)? What makes this legible and alive to a visitor without overclaiming
 (Sweetie/Sutradhar)? Does any of it create real value or is it activity theatre (Shareholder/CFO)?
 What is the cost/abuse envelope of open demand generation (Bean Counter/Credit)?
+
+---
+
+## Cycle 4 — 2026-07-28 — Chair: Ajay — Grade: B+ / improving — "kill the double-spend, then stop overclaiming the front door"
+
+Objective (one line): the best HONEST consensusless settlement rail for the agent economy —
+plain-spoken, feels live, feels like a usable sandbox, protocol integrity never weakened.
+
+Headline: Moss found a REAL protocol break (value could be minted) — that outranks everything, so it
+led. Then three seats (Shareholder CRITICAL, Credit, CFO, Sutradhar, Sweetie) converged on the same
+two live overclaims — the landing implying 15 real apps are wired when only Chitra is, and a "4 ms"
+finality number nothing reproduces. Fixed both. All five EXECUTE items are IMPLEMENTED this cycle
+(not just decided); protocol fix verified green, HTML/register edits pending the owner's deploy.
+
+**EXECUTED (5):**
+1. **[DONE, VERIFIED] Cross-track double-spend fix — protocol integrity (Moss CRITICAL).** A principal's
+   balance is one pool but the first-seen lock was per-track: a direct spend (account.pending) and a
+   delegated spend (delegation.pending) on the same balance each passed an independent balance check
+   and both settled → principal to NEGATIVE = value minted. This bit HONEST concurrent use (principal
+   spending while its own agent spends). Fix in `src/authority.ts`: new `private reservedAgainst(owner)`
+   sums the owner's own pending + every delegation with `principal===owner && pending`; both balance
+   guards (direct ~:242, delegated ~:278) now subtract it. Reservation auto-releases when pending clears
+   at settle; pending is already persisted so it survives restart. Cross-authority safe: under a real
+   race, differing first-seen order means at most one spend reaches quorum (correct FastPay safety), the
+   loser stalls. Added regression test to `test/protocol.test.ts` (direct+delegated concurrent 100-draw
+   on a 100 balance: asserts not-both-settle, supply conserved, balance never negative). `npm test`
+   23→24 green. This restores the headline "double-spend-proof / value conservation" invariant that was
+   live-reachable-false.
+2. **[DONE] Retire the unbacked "4 ms" finality number (CFO HIGH).** `npm run demo` reproduces ~31.7 ms
+   in-process, not 4 ms (~8x overclaim) — no sub-10ms measurement exists in src/. Replaced all four
+   public surfaces — index.html:285, :560, :601 (roadmap), whitepaper.html:230 — with "~30 ms in-process,
+   four authorities on one machine (npm run demo)". Kills the last member of the stale-number family
+   Cycle 2 cleaned up.
+3. **[DONE] Kill the "your apps" landing overclaim (Shareholder CRITICAL; Credit/Sutradhar/Sweetie).**
+   14 of 15 landing nodes are stand-in personas replaying a needs bank; only Chitra is live-council-wired.
+   Reworded index.html:81 header + :169 viz-note to say plainly "the builder's apps post real needs —
+   Chitra is wired live to its council; the rest replay each app's genuine needs bank." Same disclosure
+   ported to economy.html:74 (and updated "5 apps"→"15 apps"). This is the exact Cycle-4 honesty question.
+4. **[DONE] Freshness-gate the "live" signal + never-permanent-"connecting" (Tara HIGH + LOW; Tara MED on
+   economy.html).** index.html viz-HUD and economy.html live-dot both hardcoded green on any successful
+   /state fetch — a stalled-but-reachable economy (Cycle-2 crash class) read as "live". Now both derive
+   the indicator from `age = now - lastTradeAt`: <15s green "● live", 15–90s amber "● quiet", >90s muted
+   "● waking up". index.html poll() partial-state bail now writes a "waking up — retrying…" note instead
+   of leaving "connecting…" stuck forever.
+5. **[DONE] Register re-sync + usable-sandbox/plain-words sweep (Credit MED/LOW, CFO MED, Sutradhar MED,
+   Sweetie MED/LOW).** capabilities.json + STATUS.md: "22 tests"→"24" with correct breakdown; deleted the
+   stale "economy state in-memory, reset on restart / per-process-lifetime cap / durable persistence is
+   queued" — replaced with the shipped truth (durable Fly volume + monthTick() true monthly ledger,
+   Cycle 3). index.html hire(): the paid deliverable now `scrollIntoView`s and the log says "report below
+   ↓" (it rendered 211px below the pay button, unseen — undercut "pay → agent produces your deliverable").
+   economy.html: dropped the jargon "service-ring genesis supply"→"Credits in circulation", "GDP"→"Credits
+   moved". explorer.html footer "every 4 seconds"→"every 2.5 seconds" (matched the code). arena.html:
+   de-hyped "autonomous agent that lives in the economy / acts on its own" → "a bot you start from this
+   tab; while it's open it posts a need every ~22s and pays a real agent" (Shareholder MED — it's a
+   browser setTimeout loop, not a resident autonomous agent).
+
+**Conflicts resolved:** all seats that touched the landing wanted the same "your apps" disclosure — merged
+into one reword (item 3). CFO wanted "4 ms" retired OR a real microbench; chose retire+reproducible-figure
+(no microbench producing 4 ms exists — inventing one to save the number would be the dishonest path).
+Sweetie's quota-reservation (item below) vs the scrollIntoView both target the marquee payoff — did the
+cheap high-certainty scrollIntoView now, DEFERRED the economy.ts quota split.
+
+**DEFERRED (Cycle 5 queue, ordered):**
+- **Reserve a live-human slice of the hourly brain quota** (Sweetie HIGH): cap internal filler at
+  INTERNAL_QUOTA=6 so ≥2 of 8 slots only a real guest/arena human can consume; total stays ≤8/hr (cap
+  untouched). Real system win — the marquee "drop a need → watch it solved" currently loses to synthetic
+  filler at 8/8. economy.ts fulfilOne() ~:239. Not done this cycle only because it's a behavioural
+  economy change wanting care; it is the top Cycle-5 item.
+- **Cap the cognition loop under the hourly ceiling** (Bean Counter MED): cognitionLoop (economy.ts ~:385)
+  is the only brain path with no per-hour bound — add `brainQuotaOk()`/COG_PER_HOUR so the $60 cap is
+  provably comprehensive across ALL brain paths.
+- **Skew-correct explorer "Xs ago"** (Tara MED): add `now` to /stats (or /recent) and mirror economy.html's
+  ageOf so a skewed visitor clock stops reading the feed as falsely fresh/stale.
+- **Micro-cache /state ~1000ms** (Bean Counter LOW): memoize the 20.8KB serialization within a 1s window;
+  smooths the 0.78→1.74s latency spikes under many concurrent tabs. Low now at $0.01 spend / single viewer.
+- **Delegation-expiry clock-skew tolerance + §18 partition/clock-skew integration test + THREAT_MODEL.md**
+  (Moss LOW×2, carried): SKEW_MS tolerance at authority.ts:267; no-lock-cancellation liveness gap
+  documented in the threat model.
+- **Wire a second app's council (Chitra-pattern bridge)** (Shareholder/owner theme): shrinks the 1/15
+  live-wired gap; the honest long game vs growing the stand-in illusion.
+- Reconcile the two live-WAN latency figures (~280ms landing vs ~183ms whitepaper) to one dated, defined
+  number (CFO LOW).
+
+**DROP:**
+- Switching setu-gateway to auto_stop (Bean Counter's own drop): the ~$2/mo saving isn't worth a cold
+  first-hit on the publicly-claimed "live x402 endpoint today". Keep it warm.
+- Uniform gold treatment of all 15 landing nodes as identical: superseded by item 3's disclosure (kept the
+  viz, added the honest wording) rather than a hard visual split this cycle.
+
+**ESCALATE:** none. No spend beyond caps, no credentials/keys, no protocol-shape change (the reservation
+fix TIGHTENS an existing balance check — same wire format, backward-compatible, safety-restoring — so it is
+within the seat's integrity mandate, not an escalation). The ANTHROPIC_API_KEY is already a Fly secret.
+
+**Deploy note:** item 1 needs a `flyctl deploy` of setu-economy (authority.ts) after `npm test` (24 green);
+items 2–5 HTML/register ship to Vercel via the strict .vercelignore allowlist; capabilities.json/STATUS.md
+are repo docs. Owner's loop to deploy.
+
+**NOT converged** — a CRITICAL protocol break existed this cycle and two live overclaims were on public
+pages; that is not a cosmetic-polish-only state. Material items remain in the deferred queue (quota
+reservation, cognition cap, second app bridge).
 
 ---
 

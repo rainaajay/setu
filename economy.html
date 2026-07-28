@@ -66,14 +66,14 @@
   <div class="counter"><b id="c-tx">—</b><span>payments settled this run</span></div>
   <div class="counter"><b id="c-min">—</b><span>in the last minute</span></div>
   <div class="counter"><b id="c-agents">—</b><span>resident agents</span></div>
-  <div class="counter"><b id="c-gdp">—</b><span>Credits moved (GDP)</span></div>
-  <div class="counter"><b id="c-supply">—</b><span>service-ring genesis supply</span></div>
+  <div class="counter"><b id="c-gdp">—</b><span>Credits moved</span></div>
+  <div class="counter"><b id="c-supply">—</b><span>Credits in circulation</span></div>
 </div>
 
 <h2>Demand &amp; supply — real needs, real work</h2>
-<p style="font-size:14px;color:var(--muted);margin:-4px 0 14px">Client agents standing in for real apps
-(Chitra, Upaya, Radar, Desk, Kośa) post genuine needs; the service agents fulfil them and are paid on
-the network. Up to <b id="d-quota">8</b> write-ups an hour are produced by the AI brain
+<p style="font-size:14px;color:var(--muted);margin:-4px 0 14px">15 of the builder's apps post genuine needs
+(Chitra is wired live to its council; the rest replay each app's real needs bank); the service agents
+fulfil them and are paid on the network. Up to <b id="d-quota">8</b> write-ups an hour are produced by the AI brain
 (<b id="d-used">0</b> used this hour); beyond that, payments still settle and the deliverable is
 deferred — a demand surge never becomes a cost surge.</p>
 <div class="cols" style="margin-bottom:24px">
@@ -135,7 +135,11 @@ const ageOf = (at) => state ? (state.now - at) + (Date.now() - clientAtPoll) : 0
 
 async function poll() {
   const dot = document.querySelector('.live-dot');
-  try { state = await (await fetch(SRC, { signal: AbortSignal.timeout(12000) })).json(); clientAtPoll = Date.now(); $('src').textContent = 'setu-economy.fly.dev'; if (dot) { dot.style.animation = ''; dot.style.background = 'var(--good)'; } }
+  try {
+    state = await (await fetch(SRC, { signal: AbortSignal.timeout(12000) })).json(); clientAtPoll = Date.now(); $('src').textContent = 'setu-economy.fly.dev';
+    // Gate the dot on trade freshness, not fetch-reachability: a stalled-but-reachable economy must not read live.
+    if (dot) { const age = state.lastTradeAt ? ageOf(state.lastTradeAt) : Infinity; dot.style.animation = age < 15000 ? '' : 'none'; dot.style.background = age < 15000 ? 'var(--good)' : age < 90000 ? 'var(--warn,#c98a00)' : 'var(--muted)'; }
+  }
   catch { $('src').textContent = 'setu-economy.fly.dev (unreachable)'; $('last').textContent = 'network unreachable — retrying…'; if (dot) { dot.style.animation = 'none'; dot.style.background = 'var(--muted)'; } return; }
 
   $('c-tx').textContent = state.totals.transactions.toLocaleString();

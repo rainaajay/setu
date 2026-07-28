@@ -95,7 +95,7 @@ const valid = reviews.filter(Boolean)
 const chairInput = JSON.stringify(valid, null, 1).slice(0, 60000)
 const AJAY_SCHEMA = {
   type: 'object',
-  required: ['objective_check', 'decisions', 'cycle_summary'],
+  required: ['cycle_summary'],
   properties: {
     objective_check: { type: 'string', description: 'is Setu drifting from the honest agent-economy settlement objective? one paragraph' },
     grade: { type: 'string', description: "Credit's letter grade for this cycle, carried forward" },

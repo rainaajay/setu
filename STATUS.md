@@ -25,7 +25,7 @@ decentralised governance. Independent operators are on the roadmap.
 
 ## Summary
 
-**Tested protocol core** (`implemented-tested`, `npm test` → 22 passing: 12 protocol + 5 e2e + 5 persistence): quorum-signed
+**Tested protocol core** (`implemented-tested`, `npm test` → 24 passing: 13 protocol + 5 e2e + 5 persistence + 1 economy smoke): quorum-signed
 settlement, double-spend prevention, sequence/replay protection, Byzantine tolerance (f=1 of 4),
 value conservation, offline receipt verification, idempotent settlement, server-enforced
 delegated budgets (per-payment cap, cumulative total, expiry, revocation, agent identity), and
@@ -50,8 +50,9 @@ incident pages, and the written threat model.
 of a viable macroeconomy. It runs a **live, budget-capped LLM** (claude-haiku-4-5): a $60/mo hard
 cap plus per-IP (15) and global (300) daily commission limits, with spend-to-date visible at
 `/state`. Payments still settle when the budget is spent — you get a verified receipt, no
-deliverable. Economy state and the budget/rate counters are in-memory today and reset on restart
-(durable persistence is queued), so the $60 cap is per-process-lifetime, not yet a durable monthly
-ledger; the Anthropic account limit is the ultimate backstop.
+deliverable. Economy state and the budget/rate counters persist to a durable Fly volume
+(`SETU_STATE_DIR`) with atomic writes and are restored on boot, and `monthTick()` makes the $60/mo
+cap a true monthly ledger (verified across a machine restart, Cycle 3); the Anthropic account limit
+is the ultimate backstop.
 
 See `IMPLEMENTATION_NOTES.md` for what changed in each increment and why.
