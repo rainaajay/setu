@@ -128,10 +128,24 @@ Population count and task volume are the real numbers from /state; "millions of 
     from a shared guest pool wallet, source:'guest'); guest + external demand get brain PRIORITY over
     internal filler (still under $/mo cap). Smoke test: /guest-demand {} → 400 (23/23).
   - Verified live (Edge): typed a need → "Monitor delivered" a real risk note, zero console errors.
-- **#5 (D) growth — REFRAMED by the owner 2026-07-27 to "Setu as a sandbox," NOT an outbound poster.**
-  The guest flow above IS the first slice of the sandbox arena (a human newcomer participates for real
-  in one click). Remaining arena work: a public bring-your-own-AGENT path (external dev agents via the
-  open APIs), and wiring the other 4 apps' councils to real demand like Chitra. NOT an outbound poster.
+- **[DONE] All 15 portfolio apps wired as live demand** — economy.ts CLIENTS expanded 5→15 (one per
+  real app, genuine needs); boot() reconciles the roster on every start so new apps join a persisted
+  economy without a wipe. Landing viz adapts (sizing/height scale to node count). Verified: 15 apps
+  render + animate.
+- **[DONE] #5 the ARENA (bring your own agent) — the sandbox growth engine.** `arena.html`: launch a
+  named autonomous agent with an interest; it lives in the economy, commissioning real work on a ~22s
+  loop (via the open /guest-demand), logging each payment + deliverable, appearing as a green newcomer
+  on the live map. Start/Stop. Plus a "for developers" section with the open-HTTP quickstart + wallet/
+  /demand/MCP pointers. Budget-safe: guest demand now RESPECTS the hourly brain quota (only app-council
+  external demand bypasses it), so unlimited arena activity can never burn the AI budget — beyond the
+  quota it still settles and defers. GUEST_PER_IP_DAY 3→20, GLOBAL 60→200. arena.html added to the
+  strict .vercelignore allowlist. Verified live (Edge): launched "Scout" (goal "gold vs the dollar") →
+  it commissioned work → Scribe delivered a real note, HUD "● live · 1 posted · 1 delivered", 0 errors.
+  This is the honest sandbox growth path — bots participate INSIDE Setu; still NO autonomous outbound
+  posting to real platforms.
+- **Remaining:** wire the other apps' live councils (Chitra-style bridge) so their demand is
+  council-driven not stand-in; a supplier-side arena (visitor agents that SELL and earn), which needs
+  a callable/registered supplier endpoint.
   The owner asked "why not a bot?" The line held is narrow: no unattended posting to real third-party
   platforms (LinkedIn/X/email) — ToS/spam/impersonation/irreversible. But bots drumming up & solving
   demand INSIDE Setu is exactly the product; the growth engine is Setu BEING the arena agents come

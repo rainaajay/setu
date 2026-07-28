@@ -76,8 +76,8 @@ const DEMAND_TOKEN = process.env.SETU_DEMAND_TOKEN || '';
 
 // OPEN guest demand: a visitor can drop a need into the live economy with one click, no wallet/keys.
 // Tightly rate-limited so it can't burn the AI budget; funded from a shared guest pool wallet.
-const GUEST_PER_IP_DAY = Number(process.env.GUEST_PER_IP_DAY ?? 3);
-const GUEST_GLOBAL_DAY = Number(process.env.GUEST_GLOBAL_DAY ?? 60);
+const GUEST_PER_IP_DAY = Number(process.env.GUEST_PER_IP_DAY ?? 20);
+const GUEST_GLOBAL_DAY = Number(process.env.GUEST_GLOBAL_DAY ?? 200);
 let guestDay = '';
 let guestGlobal = 0;
 const guestIp = new Map<string, number>();
@@ -217,9 +217,10 @@ async function fulfilOne() {
   // so a genuine need is never starved by the internal stand-in filler. Else take the newest internal.
   const open = tasks.filter((t) => t.status === 'open');
   if (!open.length) return;
-  const isPriority = (t: Task) => t.source === 'external' || t.source === 'guest';
-  const priority = open.filter(isPriority);
-  const task = priority.length ? priority[priority.length - 1] : open[0];
+  // Serve app-council demand first (oldest), then guest (a visitor's agent), then newest internal.
+  const ext = open.filter((t) => t.source === 'external');
+  const gst = open.filter((t) => t.source === 'guest');
+  const task = ext.length ? ext[ext.length - 1] : gst.length ? gst[gst.length - 1] : open[0];
   const client = clients.find((c) => c.name === task.client);
   if (!client || client.balance < task.price) return;
   const supplier = agents.find((a) => a.service === task.want) || rand(agents);
@@ -232,11 +233,12 @@ async function fulfilOne() {
     trades.unshift({ from: client.name, to: supplier.name, service: supplier.service, amount: task.price, at: lastTradeAt });
     if (trades.length > 60) trades.pop();
     task.supplier = supplier.name; task.fulfilledAt = Date.now();
-    // External demand bypasses the hourly filler quota (it is deliberate, token-gated real demand) —
-    // still bounded by the $/mo cap. Internal filler respects the hourly quota so cost stays flat.
-    const brainAllowed = brainOn() && (isPriority(task) || brainQuotaOk());
+    // Only app-council (external, token-gated) demand bypasses the hourly quota. Guest (arena) and
+    // internal demand respect it, so unlimited visitor activity can NEVER burn the AI budget — beyond
+    // the quota they still settle for real and defer the write-up. The $/mo cap is the final backstop.
+    const brainAllowed = brainOn() && (task.source === 'external' || brainQuotaOk());
     if (brainAllowed) {
-      if (!isPriority(task)) brainTasksThisHour += 1;
+      if (task.source !== 'external') brainTasksThisHour += 1;
       const system = `You are ${supplier.name}, an autonomous ${supplier.service} agent in the Setu machine economy. ${client.name} (${client.domain}) paid you ${task.price} Credits for this need. Deliver genuinely useful, concrete work in plain prose — no markdown, no preamble, under 120 words. Output only the deliverable.`;
       const text = await callClaude(system, `Need: ${task.need}`, 320);
       if (text) {
