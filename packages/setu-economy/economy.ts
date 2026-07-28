@@ -119,6 +119,9 @@ async function makeAgent(r: { name: string; service: string; desc: string; price
 // settlement; if the hourly brain quota allows, the supplier produces the actual work, otherwise
 // the payment still settles and the deliverable is honestly deferred. Real needs, real payments,
 // real work — bounded so a demand surge can never become a cost surge.
+// The demand side: one client agent per real app in the owner's portfolio, each posting genuine
+// needs that app would actually have. (Chitra additionally emits LIVE council-chosen demand via
+// POST /demand; the rest post from this real-needs bank until their council bridge is dropped in.)
 const CLIENTS = [
   { name: 'Chitra', domain: 'art-commissioning studio', needs: [
     'Critique the benchmark-round UX for a first-time art buyer, in plain words.',
@@ -139,6 +142,33 @@ const CLIENTS = [
   { name: 'Kosha', domain: 'Indian-knowledge encyclopedia', needs: [
     'Summarise one Nyaya concept in plain English for a newcomer.',
     'Flag where a claim needs a tradition-vs-scholarship caveat.' ] },
+  { name: 'Hunch', domain: 'intuition-breaking knowledge blog', needs: [
+    'Sharpen a post hook so a counterintuitive claim lands in one line.',
+    'Fact-check a surprising claim and flag if it overstates the evidence.' ] },
+  { name: 'DataRoom', domain: 'BCBS 239 control & evidence OS', needs: [
+    'Write a plain-language note on a data-lineage control gap.',
+    'Flag the top risk in an unattested regulatory report.' ] },
+  { name: 'TwinHub', domain: 'activist economic-profit twins', needs: [
+    'Write an activist coverage note on a value-destroying business line.',
+    'Turn a segment P&L into a keep/fix/exit signal with a reason.' ] },
+  { name: 'Jyotish', domain: 'Vedic astrology app', needs: [
+    'Write a plain, practical daily-guidance note from a chart summary.',
+    'Flag an astrological claim that is too strong and should be softened.' ] },
+  { name: 'Ansatz', domain: 'computation & complexity academy', needs: [
+    'Critique a module explanation of a complexity concept for clarity.',
+    'Flag a hand-wavy step in a proof sketch that a learner would trip on.' ] },
+  { name: 'Pitch', domain: 'skill-balanced pickup football', needs: [
+    'Balance two 5-a-side teams by skill and give the reasoning.',
+    'Flag the fairness risk when one captain out-rates the other.' ] },
+  { name: 'Tiny', domain: 'micro-habit longevity app', needs: [
+    'Suggest one tiny, stackable habit for a stated body-domain goal.',
+    'Flag a routine that is too ambitious to stick and propose a smaller step.' ] },
+  { name: 'TwinCAB', domain: 'bank economic digital twin', needs: [
+    'Reconcile a market-vs-management value gap in one paragraph.' ] },
+  { name: 'Sangita', domain: 'Carnatic & Hindustani vocals app', needs: [
+    'Write a short practice note for a raga a learner is starting.' ] },
+  { name: 'MinerArb', domain: 'miner-vs-MSTR pair-trade tool', needs: [
+    'Produce a pair-trade signal: a gold miner vs MSTR, with the reason.' ] },
 ];
 type Client = { name: string; domain: string; needs: string[]; wallet: SetuWallet; address: string; balance: number; posted: number; guest?: boolean };
 type Task = { id: number; client: string; domain: string; need: string; want: string; price: number; status: 'open' | 'fulfilled' | 'settled'; supplier?: string; deliverable?: string; mode?: string; postedAt: number; fulfilledAt?: number; source?: 'external' | 'guest' };
@@ -300,12 +330,16 @@ async function boot() {
     for (const r of ROLES) agents.push(await makeAgent(r, SEED));
     // Genesis issuance from the faucet (the testbed's fixed-supply Treasury stand-in).
     await Promise.all(agents.map((a) => a.wallet.faucet(SEED).catch(() => {})));
-    // The demand side: one client wallet per portfolio app, funded to pay for work.
-    for (const c of CLIENTS) {
-      const wallet = await SetuWallet.create(MAINNET);
-      clients.push({ name: c.name, domain: c.domain, needs: c.needs, wallet, address: wallet.address, balance: 0, posted: 0 });
-    }
-    await Promise.all(clients.map((c) => c.wallet.faucet(30).then(() => { c.balance = 30; }).catch(() => {})));
+  }
+  // Ensure every portfolio app has a funded client agent. Runs on every boot so apps added AFTER a
+  // saved state (a new app wired in) appear without wiping the economy; existing ones refresh needs.
+  for (const cfg of CLIENTS) {
+    const existing = clients.find((c) => c.name === cfg.name);
+    if (existing) { existing.needs = cfg.needs; existing.domain = cfg.domain; continue; }
+    const wallet = await SetuWallet.create(MAINNET);
+    const c: Client = { name: cfg.name, domain: cfg.domain, needs: cfg.needs, wallet, address: wallet.address, balance: 0, posted: 0 };
+    try { await c.wallet.faucet(30); c.balance = 30; } catch { /* testnet issuance */ }
+    clients.push(c);
   }
   monthTick();
   // Pre-cache the committee public keys so /commission can verify certificates without a fetch
