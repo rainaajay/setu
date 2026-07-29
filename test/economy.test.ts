@@ -69,6 +69,14 @@ test('economy service smoke test (offline, no boot)', async () => {
     await fetch(base + '/commission', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{not json' }).catch(() => {});
     const h2 = await fetch(base + '/health');
     assert.equal(h2.status, 200, 'process must survive a malformed request');
+
+    // A restored wallet must be re-exportable, or the economy's persistence survives only ONE restart
+    // then silently falls back to genesis ("key is not extractable"). Round-trip create->export->load->export.
+    const w1 = await SetuWallet.create(MAINNET);
+    const saved = await w1.export();
+    const w2 = await SetuWallet.load(saved, MAINNET);
+    const saved2 = await w2.export(); // must NOT throw
+    assert.equal(saved2.address, saved.address, 'restored wallet must re-export to the same address');
   } finally {
     await new Promise<void>((r) => server.close(() => r()));
   }

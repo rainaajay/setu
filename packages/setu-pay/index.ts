@@ -126,7 +126,10 @@ export class SetuWallet {
     saved: { secret: string; address: string },
     committee: Committee = MAINNET,
   ): Promise<SetuWallet> {
-    const privateKey = await subtle.importKey('pkcs8', unb64(saved.secret), 'Ed25519', false, [
+    // Extractable = true so a restored wallet can be re-exported (export()) and saved again. Without
+    // it, a service that persists wallets (setu-economy) survives ONE restart then can never save
+    // again ("key is not extractable"), silently falling back to genesis on the next restart.
+    const privateKey = await subtle.importKey('pkcs8', unb64(saved.secret), 'Ed25519', true, [
       'sign',
     ]);
     return new SetuWallet(committee, privateKey, saved.address);

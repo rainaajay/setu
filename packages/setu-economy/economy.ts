@@ -170,8 +170,8 @@ const CLIENTS = [
   { name: 'MinerArb', domain: 'miner-vs-MSTR pair-trade tool', needs: [
     'Produce a pair-trade signal: a gold miner vs MSTR, with the reason.' ] },
 ];
-type Client = { name: string; domain: string; needs: string[]; wallet: SetuWallet; address: string; balance: number; posted: number; guest?: boolean };
-type Task = { id: number; client: string; domain: string; need: string; want: string; price: number; status: 'open' | 'fulfilled' | 'settled'; supplier?: string; deliverable?: string; mode?: string; postedAt: number; fulfilledAt?: number; source?: 'external' | 'guest' };
+type Client = { name: string; domain: string; needs: string[]; wallet: SetuWallet; address: string; balance: number; posted: number; guest?: boolean; payFails?: number };
+type Task = { id: number; client: string; domain: string; need: string; want: string; price: number; status: 'open' | 'fulfilled' | 'settled'; supplier?: string; deliverable?: string; mode?: string; postedAt: number; fulfilledAt?: number; source?: 'external' | 'guest'; attempts?: number };
 const clients: Client[] = [];
 const tasks: Task[] = []; // newest first: open needs + recently fulfilled
 const showcase: Task[] = []; // the last few REAL (brain-produced) deliverables, kept so they are
@@ -229,20 +229,43 @@ async function postDemand() {
 }
 
 async function fulfilOne() {
-  // EXTERNAL (real app-council) and GUEST (a visitor's own) demand get priority, served oldest-first,
-  // so a genuine need is never starved by the internal stand-in filler. Else take the newest internal.
   const open = tasks.filter((t) => t.status === 'open');
   if (!open.length) return;
-  // Serve app-council demand first (oldest), then guest (a visitor's agent), then newest internal.
-  const ext = open.filter((t) => t.source === 'external');
-  const gst = open.filter((t) => t.source === 'guest');
-  const task = ext.length ? ext[ext.length - 1] : gst.length ? gst[gst.length - 1] : open[0];
-  const client = clients.find((c) => c.name === task.client);
-  if (!client || client.balance < task.price) return;
-  const supplier = agents.find((a) => a.service === task.want) || rand(agents);
-  if (!supplier) return;
-  try {
-    await client.wallet.pay(supplier.address, task.price, `${client.name}->${supplier.name}`);
+  // Priority order: app-council (external) oldest-first, then guest (a visitor's agent) oldest-first,
+  // then internal newest-first. Walk the list and fulfil the FIRST task that actually settles. Crucial:
+  // NEITHER a broke client NOR a failed payment may head-of-line-block the loop — on either, skip to the
+  // next candidate (both stalled real external needs live: a broke client, and a stale account lock that
+  // made every pay() throw). A task that can't settle after a few tries is retired so it stops blocking.
+  const ordered = open.filter((t) => t.source === 'external').reverse()
+    .concat(open.filter((t) => t.source === 'guest').reverse())
+    .concat(open.filter((t) => !t.source));
+  for (const task of ordered) {
+    const client = clients.find((x) => x.name === task.client);
+    if (!client) continue;
+    if (client.balance < task.price) { try { await client.wallet.faucet(30); client.balance += 30; } catch { continue; } }
+    const supplier = agents.find((a) => a.service === task.want) || rand(agents);
+    if (!supplier) return;
+    try {
+      await client.wallet.pay(supplier.address, task.price, `${client.name}->${supplier.name}`);
+      client.payFails = 0;
+    } catch {
+      // Payment failed. Count it, retire the task after a few tries so it can't block, and try the next
+      // candidate THIS round. If a client's payments keep failing its on-network account is likely stuck
+      // (a stale pending lock — no protocol-level cancellation yet), so SELF-HEAL: give it a fresh
+      // funded wallet so its demand can settle again. This keeps the market flowing without a protocol change.
+      task.attempts = (task.attempts ?? 0) + 1;
+      client.payFails = (client.payFails ?? 0) + 1;
+      if (client.payFails >= 3) {
+        try {
+          const w = await SetuWallet.create(MAINNET);
+          await w.faucet(30);
+          client.wallet = w; client.address = w.address; client.balance = 30; client.payFails = 0;
+          process.stderr.write(`[economy] rotated stuck wallet for ${client.name}\n`);
+        } catch { /* try again next round */ }
+      }
+      if (task.attempts >= 5) { task.status = 'settled'; task.mode = 'failed'; task.deliverable = 'Could not settle on the network after several tries (the account was temporarily locked); giving up so the market keeps flowing.'; }
+      continue;
+    }
     client.balance -= task.price;
     supplier.balance += task.price; supplier.sold += 1; supplier.revenue += task.price;
     totalTx += 1; gdp += task.price; lastTradeAt = Date.now();
@@ -259,14 +282,22 @@ async function fulfilOne() {
       const text = await callClaude(system, `Need: ${task.need}`, 320);
       if (text) {
         task.status = 'fulfilled'; task.mode = 'ai'; task.deliverable = text;
-        showcase.unshift({ ...task }); if (showcase.length > 8) showcase.pop();
+        // Keep real-app (external) and visitor (guest) deliverables visible: when the showcase is full,
+        // evict the OLDEST INTERNAL stand-in first; only drop a real one if there are no stand-ins left.
+        showcase.unshift({ ...task });
+        if (showcase.length > 8) {
+          let idx = showcase.length - 1;
+          for (let i = showcase.length - 1; i >= 0; i--) { if (!showcase[i].source) { idx = i; break; } }
+          showcase.splice(idx, 1);
+        }
         thought(supplier.name, `delivered for ${client.name}: "${task.need.slice(0, 56)}${task.need.length > 56 ? '…' : ''}"`);
       } else { task.status = 'settled'; task.mode = 'deferred'; task.deliverable = `Paid and settled; ${supplier.name} could not produce output just now.`; }
     } else {
       task.status = 'settled'; task.mode = 'deferred'; deferredThisHour += 1;
       task.deliverable = `Paid and settled on the network. The written deliverable is deferred — this hour's shared AI quota is used up (protects the $${MONTHLY_BUDGET_USD}/mo cap). The payment is real regardless.`;
     }
-  } catch { /* settlement failed; leave the task open to retry next round */ }
+    return; // one task settled this round
+  }
 }
 
 async function demandLoop() {
