@@ -79,10 +79,22 @@ Four items shipped + verified live (economy + 4 authorities + Vercel; npm test 2
    "~183 ms/hop" unified to "~180 ms warm (p50; higher when cold)" on both — matches a live 179 ms
    payment and the chained-spend benchmark.
 
+**[DONE post-cycle] Wire a second app's live council** — Counterparty Intel ("Radar") is now the 2nd
+real-council-wired app (after Chitra). Added a PORTABLE bridge (`scripts/emit-setu-demand.mjs`,
+`SETU_APP=Radar`) + `setuDemand` to its council chair; the chair named a real need (AI data-center
+supply-chain contagion), emitted → Setu /demand → a Setu agent delivered a real risk note. Pushed to
+counterparty-intel. Same bridge drops into any app (set SETU_APP). **Wiring it surfaced + fixed 3 real
+bugs** (Setu 2a54a02): (a) persistence survived only ONE restart — `SetuWallet.load()` made restored
+keys non-extractable so re-save threw "key is not extractable" → silent genesis fallback; fixed to
+extractable + round-trip test; (b) fulfilOne head-of-line-blocked on any unpayable/failed task (froze
+the whole demand loop) → now skips + retires after 5 tries; (c) a client with a stale pending lock (no
+protocol lock-cancellation yet — Moss's deferred gap) could never settle → self-heal rotates its wallet
+after 3 failed pays. Showcase now retains external/guest deliverables over internal filler.
+
 **Still in the Cycle-5 queue:** micro-cache /state ~1s (Bean Counter LOW); delegation-expiry skew
-tolerance + §18 partition/clock-skew integration test + THREAT_MODEL.md (Moss); wire a second app's
-live council (Chitra-pattern). Verified live: /state shows humanReserved 2, /stats has `now`, a normal
-payment settles 4/4.
+tolerance + §18 partition/clock-skew integration test + THREAT_MODEL.md (Moss — the lock-cancellation
+gap is now doubly relevant); wire more apps' live councils (portable bridge makes each a small drop-in).
+Verified live: /state humanReserved 2, /stats has `now`, a normal payment settles 4/4.
 
 ---
 
