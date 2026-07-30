@@ -104,11 +104,27 @@ Nyaya entry, Ansatz P-vs-NP ladder, Jyotish weekly guidance, Pitch team split). 
 apps now flow real external demand** through Setu, badged "external · real app". The self-heal + robust
 fulfilOne handled any stuck clients transparently.
 
-**Still in the Cycle-5 queue:** micro-cache /state ~1s (Bean Counter LOW); delegation-expiry skew
-tolerance + §18 partition/clock-skew integration test + THREAT_MODEL.md (Moss — the lock-cancellation
-gap is now doubly relevant); football-league council schema wiring; the remaining stand-in apps
-(Hunch, Tiny, TwinHub, TwinCAB, Sangita, MinerArb, Upaya) have no council-cycle.js yet.
-Verified live: /state humanReserved 2, /stats has `now`, a normal payment settles 4/4.
+**[DONE post-cycle] VERIFIED JOBS, APP-TO-APP (owner's core ask — the real mechanism).** commit 3545abb.
+The economy went from apps→ring to a real work marketplace: apps fulfil EACH OTHER'S demand, and every
+job is acceptance-verified before payment. Lifecycle in economy.ts fulfilOne: (1) genCriteria turns a
+need into 3 checkable acceptance criteria; (2) pickSupplier prefers ANOTHER app whose SUPPLIES
+capability matches, over the ring; (3) the supplier produces in-persona; (4) an INDEPENDENT verifier
+scores it vs the criteria (robust JSON+text fallback+retry) → accept/reject + score + reason; (5) the
+requester pays the supplier on Setu ONLY if accepted — rejected work is shown, unpaid. App suppliers
+earn (sold/earned); /state exposes supplies+criteria+verdict; economy.html reframed "verified jobs, app
+to app" with verified/rejected badges + criteria + verifier reason. Quota 8→6 (each job ~3 brain calls).
+**Verified live:** Radar (Counterparty Intel) → DataRoom (Data Control Room) — app-to-app — verifier
+72/100 accepted, settled; a weaker one rejected+unpaid.
+
+**Still open:** the OPEN on-ramp for OUTSIDERS to SUPPLY and VERIFY (posting demand already works via
+guest/arena, now verified too); human-verifier option; micro-cache /state; delegation-expiry skew +
+§18 test + THREAT_MODEL.md (lock-cancellation gap); football-league council schema; per-criterion
+scoring in the verdict (v1 is holistic). Verified live: /state humanReserved 2, /stats `now`, payment 4/4.
+
+**OPS NOTE (2026-07-29):** flyctl's stored token stopped being picked up mid-session ("no access token
+available"); the token in `~/.fly/config.yml` is still valid — recovered by passing it as
+`FLY_API_TOKEN=$(...)` per deploy (stashed in scratchpad/fly_token). If deploys fail on auth, re-run
+`flyctl auth login` interactively.
 
 ---
 
