@@ -170,8 +170,9 @@ const CLIENTS = [
   { name: 'MinerArb', domain: 'miner-vs-MSTR pair-trade tool', needs: [
     'Produce a pair-trade signal: a gold miner vs MSTR, with the reason.' ] },
 ];
-type Client = { name: string; domain: string; needs: string[]; wallet: SetuWallet; address: string; balance: number; posted: number; guest?: boolean; payFails?: number };
-type Task = { id: number; client: string; domain: string; need: string; want: string; price: number; status: 'open' | 'fulfilled' | 'settled'; supplier?: string; deliverable?: string; mode?: string; postedAt: number; fulfilledAt?: number; source?: 'external' | 'guest'; attempts?: number };
+type Client = { name: string; domain: string; needs: string[]; wallet: SetuWallet; address: string; balance: number; posted: number; guest?: boolean; payFails?: number; sold?: number; earned?: number };
+type Verdict = { score: number; accepted: boolean; reason: string; unverified?: boolean };
+type Task = { id: number; client: string; domain: string; need: string; want: string; price: number; status: 'open' | 'fulfilled' | 'settled'; supplier?: string; deliverable?: string; mode?: string; postedAt: number; fulfilledAt?: number; source?: 'external' | 'guest'; attempts?: number; criteria?: string[]; verdict?: Verdict };
 const clients: Client[] = [];
 const tasks: Task[] = []; // newest first: open needs + recently fulfilled
 const showcase: Task[] = []; // the last few REAL (brain-produced) deliverables, kept so they are
@@ -180,11 +181,11 @@ let taskSeq = 0;
 
 // Hourly cap on brain-produced deliverables from the autonomous market (separate from the visitor
 // commission limits). Keeps continuous internal demand cheap; the $/mo cap is still the backstop.
-const BRAIN_TASKS_PER_HOUR = Number(process.env.BRAIN_TASKS_PER_HOUR ?? 8);
+const BRAIN_TASKS_PER_HOUR = Number(process.env.BRAIN_TASKS_PER_HOUR ?? 6); // each verified job = ~3 brain calls (criteria+produce+verify), so fewer jobs/hr
 // Reserve the top slots for real humans: internal (stand-in) demand may use at most this many of the
 // hourly deliverables, so a live guest/arena visitor always finds ≥ (total − internal) slots free —
 // the marquee "drop a need → watch it solved" never loses to synthetic filler.
-const INTERNAL_BRAIN_PER_HOUR = Number(process.env.INTERNAL_BRAIN_PER_HOUR ?? 6);
+const INTERNAL_BRAIN_PER_HOUR = Number(process.env.INTERNAL_BRAIN_PER_HOUR ?? 4);
 // The cognition loop (agents deciding to reprice/spawn) was the only brain path with no per-hour
 // bound. Cap it too, so the $/mo ceiling is backed by a provable per-hour rate limit on EVERY path.
 const COG_PER_HOUR = Number(process.env.COG_PER_HOUR ?? 8);
@@ -228,6 +229,73 @@ async function postDemand() {
   if (tasks.length > 40) tasks.pop();
 }
 
+// What each app can SUPPLY (so apps fulfil each other's demand, not just the generic ring). Keyed by
+// the Setu client name; service must be one of the ring services so needs route cleanly.
+const SUPPLIES: Record<string, { service: string; expertise: string }> = {
+  Chitra: { service: 'written report', expertise: 'art & design critique and creative writing' },
+  Upaya: { service: 'written report', expertise: 'clear pedagogy and plain explanations' },
+  Radar: { service: 'risk alert', expertise: 'counterparty and concentration risk' },
+  Desk: { service: 'trade signals', expertise: 'cross-asset market signals' },
+  Kosha: { service: 'written report', expertise: 'sourced Indian-knowledge writing' },
+  Hunch: { service: 'written report', expertise: 'sharp, intuition-breaking prose' },
+  DataRoom: { service: 'risk alert', expertise: 'data controls and compliance' },
+  TwinHub: { service: 'trade signals', expertise: 'economic-profit and activist analysis' },
+  Jyotish: { service: 'written report', expertise: 'interpretive guidance writing' },
+  Ansatz: { service: 'written report', expertise: 'computation and complexity explanations' },
+  Pitch: { service: 'written report', expertise: 'fair allocation and balancing logic' },
+  Tiny: { service: 'written report', expertise: 'habit and behaviour design' },
+  TwinCAB: { service: 'risk alert', expertise: 'bank value reconciliation' },
+  Sangita: { service: 'written report', expertise: 'music practice guidance' },
+  MinerArb: { service: 'trade signals', expertise: 'miner-vs-MSTR pair signals' },
+};
+
+type Supplier = { kind: 'app' | 'ring'; name: string; address: string; expertise: string; wallet: SetuWallet; ref: any };
+// Prefer ANOTHER APP that supplies this capability (real app-to-app work), else fall back to a ring agent.
+function pickSupplier(task: Task): Supplier | null {
+  const appSups = clients.filter((c) => !c.guest && SUPPLIES[c.name]?.service === task.want && c.name !== task.client && c.name !== 'a newcomer');
+  if (appSups.length) { const c = rand(appSups); return { kind: 'app', name: c.name, address: c.address, expertise: SUPPLIES[c.name].expertise, wallet: c.wallet, ref: c }; }
+  const a = agents.find((x) => x.service === task.want) || (agents.length ? rand(agents) : null);
+  if (!a) return null;
+  return { kind: 'ring', name: a.name, address: a.address, expertise: a.desc, wallet: a.wallet, ref: a };
+}
+function creditSupplier(sup: Supplier, amount: number) {
+  if (sup.kind === 'app') { sup.ref.balance += amount; sup.ref.earned = (sup.ref.earned ?? 0) + amount; sup.ref.sold = (sup.ref.sold ?? 0) + 1; }
+  else { sup.ref.balance += amount; sup.ref.sold += 1; sup.ref.revenue += amount; }
+}
+
+// --- The acceptance mechanism: quantify demand → produce → verify against criteria → settle on accept.
+// Turn a plain need into 3 short, checkable acceptance criteria (objectify the demand).
+async function genCriteria(need: string): Promise<string[]> {
+  const out = await callClaude(
+    'Turn a work request into EXACTLY 3 short, checkable acceptance criteria — concrete conditions the deliverable must meet, each one line, testable. Output ONLY a JSON array of 3 strings.',
+    `Request: ${need}`, 160);
+  try { const a = JSON.parse((out || '').slice((out || '').indexOf('['), (out || '').lastIndexOf(']') + 1)); if (Array.isArray(a) && a.length) return a.slice(0, 4).map((x) => String(x).slice(0, 150)); } catch { /* fall through */ }
+  return ['Directly and fully addresses the stated request', 'Concrete and specific, not vague', 'Usable as-is by the requester'];
+}
+// The supplier produces the deliverable in its own persona, aiming to meet every criterion.
+async function produceDeliverable(sup: Supplier, client: Client, task: Task): Promise<string | null> {
+  const system = `You are ${sup.name} (${sup.expertise}), an agent in the Setu machine economy. ${client.name} (${client.domain}) will pay you ${task.price} Credits — but ONLY if your work meets the acceptance criteria and passes an independent verifier. Deliver genuinely useful, concrete work in plain prose — no markdown, no preamble, under 130 words. Meet every criterion. Output ONLY the deliverable.`;
+  return callClaude(system, `Need: ${task.need}\nAcceptance criteria: ${JSON.stringify(task.criteria)}`, 340);
+}
+// An INDEPENDENT verifier scores the deliverable against each criterion (crisp where possible, judged
+// where fuzzy) and returns an accept/reject verdict. Payment settles only if accepted.
+async function verifyDelivery(need: string, criteria: string[], deliverable: string): Promise<Verdict> {
+  const sys = 'You are an IMPARTIAL verifier — NOT the supplier. Judge whether the deliverable satisfies the request and every acceptance criterion. Be fair but strict: reject vague, off-topic, or placeholder work. Reply with ONE line of MINIFIED JSON and nothing else: {"score":<0-100>,"accepted":<true|false>,"reason":"<max 10 words>"}';
+  const user = `Request: ${need}\nCriteria: ${criteria.join(' | ')}\nDeliverable:\n${String(deliverable).slice(0, 1500)}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const out = await callClaude(sys, user, 120);
+    if (!out) continue;
+    const m = out.match(/\{[\s\S]*\}/);
+    if (m) { try { const j = JSON.parse(m[0]); if (typeof j.accepted === 'boolean') return { score: Math.max(0, Math.min(100, Number(j.score) || 0)), accepted: j.accepted, reason: String(j.reason || '').slice(0, 120) }; } catch { /* try text fallback */ } }
+    // Text fallback: infer from accept/reject words + a number.
+    const acc = /\b(accept|pass|approved?|true)\b/i.test(out) && !/\b(reject|fail|false|not\s+accept)\b/i.test(out);
+    const sm = out.match(/\b(\d{1,3})\s*(?:\/\s*100)?\b/);
+    if (sm) return { score: Math.min(100, Number(sm[1])), accepted: acc, reason: 'scored from verifier text' };
+  }
+  // Genuinely inconclusive after retries — settle but flag it honestly (do not fake a pass).
+  return { score: 0, accepted: true, reason: 'verifier inconclusive — settled unverified', unverified: true };
+}
+
 async function fulfilOne() {
   const open = tasks.filter((t) => t.status === 'open');
   if (!open.length) return;
@@ -239,64 +307,61 @@ async function fulfilOne() {
   const ordered = open.filter((t) => t.source === 'external').reverse()
     .concat(open.filter((t) => t.source === 'guest').reverse())
     .concat(open.filter((t) => !t.source));
+  const pushShowcase = (t: Task) => {
+    showcase.unshift({ ...t });
+    if (showcase.length > 8) { let idx = showcase.length - 1; for (let i = showcase.length - 1; i >= 0; i--) { if (!showcase[i].source) { idx = i; break; } } showcase.splice(idx, 1); }
+  };
+  const rotate = async (c: Client) => { try { const w = await SetuWallet.create(MAINNET); await w.faucet(30); c.wallet = w; c.address = w.address; c.balance = 30; c.payFails = 0; process.stderr.write(`[economy] rotated stuck wallet for ${c.name}\n`); } catch { /* retry next round */ } };
   for (const task of ordered) {
     const client = clients.find((x) => x.name === task.client);
     if (!client) continue;
+    if ((client.payFails ?? 0) >= 3) await rotate(client); // heal a stuck client BEFORE spending brain on it
     if (client.balance < task.price) { try { await client.wallet.faucet(30); client.balance += 30; } catch { continue; } }
-    const supplier = agents.find((a) => a.service === task.want) || rand(agents);
-    if (!supplier) return;
-    try {
-      await client.wallet.pay(supplier.address, task.price, `${client.name}->${supplier.name}`);
-      client.payFails = 0;
-    } catch {
-      // Payment failed. Count it, retire the task after a few tries so it can't block, and try the next
-      // candidate THIS round. If a client's payments keep failing its on-network account is likely stuck
-      // (a stale pending lock — no protocol-level cancellation yet), so SELF-HEAL: give it a fresh
-      // funded wallet so its demand can settle again. This keeps the market flowing without a protocol change.
-      task.attempts = (task.attempts ?? 0) + 1;
-      client.payFails = (client.payFails ?? 0) + 1;
-      if (client.payFails >= 3) {
-        try {
-          const w = await SetuWallet.create(MAINNET);
-          await w.faucet(30);
-          client.wallet = w; client.address = w.address; client.balance = 30; client.payFails = 0;
-          process.stderr.write(`[economy] rotated stuck wallet for ${client.name}\n`);
-        } catch { /* try again next round */ }
-      }
-      if (task.attempts >= 5) { task.status = 'settled'; task.mode = 'failed'; task.deliverable = 'Could not settle on the network after several tries (the account was temporarily locked); giving up so the market keeps flowing.'; }
-      continue;
-    }
-    client.balance -= task.price;
-    supplier.balance += task.price; supplier.sold += 1; supplier.revenue += task.price;
-    totalTx += 1; gdp += task.price; lastTradeAt = Date.now();
-    trades.unshift({ from: client.name, to: supplier.name, service: supplier.service, amount: task.price, at: lastTradeAt });
-    if (trades.length > 60) trades.pop();
-    task.supplier = supplier.name; task.fulfilledAt = Date.now();
-    // Only app-council (external, token-gated) demand bypasses the hourly quota. Guest (arena) and
-    // internal demand respect it, so unlimited visitor activity can NEVER burn the AI budget — beyond
-    // the quota they still settle for real and defer the write-up. The $/mo cap is the final backstop.
+    // Choose a supplier — prefer ANOTHER APP that supplies this capability (real app-to-app work).
+    const sup = pickSupplier(task);
+    if (!sup) return;
+    task.supplier = sup.name;
+
     const brainAllowed = brainOn() && (task.source === 'external' || brainQuotaOk(task.source));
-    if (brainAllowed) {
-      if (task.source !== 'external') { brainTasksThisHour += 1; if (task.source !== 'guest') internalTasksThisHour += 1; }
-      const system = `You are ${supplier.name}, an autonomous ${supplier.service} agent in the Setu machine economy. ${client.name} (${client.domain}) paid you ${task.price} Credits for this need. Deliver genuinely useful, concrete work in plain prose — no markdown, no preamble, under 120 words. Output only the deliverable.`;
-      const text = await callClaude(system, `Need: ${task.need}`, 320);
-      if (text) {
-        task.status = 'fulfilled'; task.mode = 'ai'; task.deliverable = text;
-        // Keep real-app (external) and visitor (guest) deliverables visible: when the showcase is full,
-        // evict the OLDEST INTERNAL stand-in first; only drop a real one if there are no stand-ins left.
-        showcase.unshift({ ...task });
-        if (showcase.length > 8) {
-          let idx = showcase.length - 1;
-          for (let i = showcase.length - 1; i >= 0; i--) { if (!showcase[i].source) { idx = i; break; } }
-          showcase.splice(idx, 1);
-        }
-        thought(supplier.name, `delivered for ${client.name}: "${task.need.slice(0, 56)}${task.need.length > 56 ? '…' : ''}"`);
-      } else { task.status = 'settled'; task.mode = 'deferred'; task.deliverable = `Paid and settled; ${supplier.name} could not produce output just now.`; }
-    } else {
-      task.status = 'settled'; task.mode = 'deferred'; deferredThisHour += 1;
-      task.deliverable = `Paid and settled on the network. The written deliverable is deferred — this hour's shared AI quota is used up (protects the $${MONTHLY_BUDGET_USD}/mo cap). The payment is real regardless.`;
+    if (!brainAllowed) {
+      // No AI budget this hour: settle the payment (real) but skip verification — mark deferred honestly.
+      try { await client.wallet.pay(sup.address, task.price, `${client.name}->${sup.name}`); client.payFails = 0; }
+      catch { task.attempts = (task.attempts ?? 0) + 1; client.payFails = (client.payFails ?? 0) + 1; if (task.attempts >= 5) { task.status = 'settled'; task.mode = 'failed'; task.deliverable = 'Could not settle after several tries; giving up so the market keeps flowing.'; } continue; }
+      client.balance -= task.price; creditSupplier(sup, task.price);
+      totalTx += 1; gdp += task.price; lastTradeAt = Date.now();
+      trades.unshift({ from: client.name, to: sup.name, service: task.want, amount: task.price, at: lastTradeAt }); if (trades.length > 60) trades.pop();
+      task.fulfilledAt = Date.now(); task.status = 'settled'; task.mode = 'deferred'; deferredThisHour += 1;
+      task.deliverable = `Paid and settled on the network. Verification deferred — this hour's shared AI quota is used up (protects the $${MONTHLY_BUDGET_USD}/mo cap). The payment is real regardless.`;
+      return;
     }
-    return; // one task settled this round
+    if (task.source !== 'external') { brainTasksThisHour += 1; if (task.source !== 'guest') internalTasksThisHour += 1; }
+
+    // The verified job: 1) quantify demand → 2) supplier produces → 3) independent verify → 4) settle on accept.
+    if (!task.criteria || !task.criteria.length) task.criteria = await genCriteria(task.need);
+    const deliverable = await produceDeliverable(sup, client, task);
+    if (!deliverable) { task.attempts = (task.attempts ?? 0) + 1; if (task.attempts >= 5) { task.status = 'settled'; task.mode = 'failed'; task.deliverable = `${sup.name} could not produce output.`; } continue; }
+    const verdict = await verifyDelivery(task.need, task.criteria, deliverable);
+    task.deliverable = deliverable; task.verdict = verdict; task.fulfilledAt = Date.now();
+
+    if (verdict.accepted) {
+      // Delivery met the quantified demand → settle the payment on the network, supplier → requester.
+      try { await client.wallet.pay(sup.address, task.price, `${client.name}->${sup.name}`); client.payFails = 0; }
+      catch { task.attempts = (task.attempts ?? 0) + 1; client.payFails = (client.payFails ?? 0) + 1; task.verdict = undefined; task.deliverable = undefined; continue; }
+      client.balance -= task.price; creditSupplier(sup, task.price);
+      totalTx += 1; gdp += task.price; lastTradeAt = Date.now();
+      trades.unshift({ from: client.name, to: sup.name, service: task.want, amount: task.price, at: lastTradeAt }); if (trades.length > 60) trades.pop();
+      task.status = 'fulfilled'; task.mode = verdict.unverified ? 'unverified' : 'ai';
+      pushShowcase(task);
+      thought(sup.name, verdict.unverified
+        ? `delivered for ${client.name} — settled, verification inconclusive`
+        : `PASSED verification ${verdict.score}/100 for ${client.name}: "${task.need.slice(0, 42)}…"`);
+    } else {
+      // Rejected by the verifier — NO payment settles. The requester keeps its funds; the record shows why.
+      task.status = 'settled'; task.mode = 'rejected';
+      pushShowcase(task);
+      thought(sup.name, `verification REJECTED ${verdict.score}/100 for ${client.name} — no payment`);
+    }
+    return; // one job resolved this round
   }
 }
 
@@ -633,11 +698,11 @@ const server = createServer((req, res) => {
     // service ring. brainTasks*/quota make the cost envelope explicit.
     demand: {
       brainTasksThisHour, brainTasksPerHour: BRAIN_TASKS_PER_HOUR, internalPerHour: INTERNAL_BRAIN_PER_HOUR, humanReserved: BRAIN_TASKS_PER_HOUR - INTERNAL_BRAIN_PER_HOUR, deferredThisHour,
-      clients: clients.filter((c) => !c.guest).map((c) => ({ name: c.name, domain: c.domain, balance: Math.round(c.balance), posted: c.posted })),
-      open: tasks.filter((t) => t.status === 'open').map((t) => ({ id: t.id, client: t.client, domain: t.domain, need: t.need, want: t.want, price: t.price, postedAt: t.postedAt, source: t.source })),
+      clients: clients.filter((c) => !c.guest).map((c) => ({ name: c.name, domain: c.domain, balance: Math.round(c.balance), posted: c.posted, supplies: SUPPLIES[c.name]?.service, sold: c.sold ?? 0, earned: c.earned ?? 0 })),
+      open: tasks.filter((t) => t.status === 'open').map((t) => ({ id: t.id, client: t.client, domain: t.domain, need: t.need, want: t.want, price: t.price, postedAt: t.postedAt, source: t.source, criteria: t.criteria })),
       // The real, brain-produced deliverables — kept in a small showcase so they stay visible even
       // though most settlements defer under the hourly quota.
-      delivered: showcase.map((t) => ({ id: t.id, client: t.client, domain: t.domain, supplier: t.supplier, need: t.need, price: t.price, deliverable: t.deliverable, at: t.fulfilledAt, source: t.source })),
+      delivered: showcase.map((t) => ({ id: t.id, client: t.client, domain: t.domain, supplier: t.supplier, need: t.need, price: t.price, deliverable: t.deliverable, at: t.fulfilledAt, source: t.source, mode: t.mode, criteria: t.criteria, verdict: t.verdict })),
     },
   });
   json(res, 404, { error: 'not found', try: ['/state', '/health'] });
