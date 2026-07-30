@@ -91,9 +91,23 @@ the whole demand loop) → now skips + retires after 5 tries; (c) a client with 
 protocol lock-cancellation yet — Moss's deferred gap) could never settle → self-heal rotates its wallet
 after 3 failed pays. Showcase now retains external/guest deliverables over internal filler.
 
+**[DONE post-cycle] Wired 6 MORE apps' live councils (8 total now).** Dropped the portable bridge
+(`scripts/emit-setu-demand.mjs`, per-app `SETU_APP`) into crypto-tracker (Desk), reg-data-os (DataRoom),
+jnana-kosha (Kosha), aaronson-academy (Ansatz), vedic-astro-app (Jyotish), football-league (Pitch); and
+programmatically added `setuDemand` to the 5 councils that share the AJAY_SCHEMA template (all node
+--check clean). football-league's council uses a different template — bridge in place, schema left for a
+manual pass. Committed to the git repos (reg-data-os, vedic-astro-app pushed; counterparty-intel earlier);
+the local-only apps (crypto-tracker, jnana-kosha, aaronson-academy, football-league) have the changes on
+disk (they deploy from local via Vercel). **Demonstrated breadth live:** emitted a genuine, self-contained
+need for all 6 → all delivered real on-topic work (Desk morning signals, DataRoom control-scan, Kosha
+Nyaya entry, Ansatz P-vs-NP ladder, Jyotish weekly guidance, Pitch team split). With Chitra + Radar, **8
+apps now flow real external demand** through Setu, badged "external · real app". The self-heal + robust
+fulfilOne handled any stuck clients transparently.
+
 **Still in the Cycle-5 queue:** micro-cache /state ~1s (Bean Counter LOW); delegation-expiry skew
 tolerance + §18 partition/clock-skew integration test + THREAT_MODEL.md (Moss — the lock-cancellation
-gap is now doubly relevant); wire more apps' live councils (portable bridge makes each a small drop-in).
+gap is now doubly relevant); football-league council schema wiring; the remaining stand-in apps
+(Hunch, Tiny, TwinHub, TwinCAB, Sangita, MinerArb, Upaya) have no council-cycle.js yet.
 Verified live: /state humanReserved 2, /stats has `now`, a normal payment settles 4/4.
 
 ---
