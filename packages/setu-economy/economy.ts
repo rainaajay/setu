@@ -171,7 +171,7 @@ const CLIENTS = [
     'Produce a pair-trade signal: a gold miner vs MSTR, with the reason.' ] },
 ];
 type Client = { name: string; domain: string; needs: string[]; wallet: SetuWallet; address: string; balance: number; posted: number; guest?: boolean; payFails?: number; sold?: number; earned?: number };
-type Verdict = { score: number; accepted: boolean; reason: string; unverified?: boolean };
+type Verdict = { score: number; accepted: boolean; reason: string; scores?: number[]; unverified?: boolean };
 type Task = { id: number; client: string; domain: string; need: string; want: string; price: number; status: 'open' | 'fulfilled' | 'settled'; supplier?: string; deliverable?: string; mode?: string; postedAt: number; fulfilledAt?: number; source?: 'external' | 'guest'; attempts?: number; criteria?: string[]; verdict?: Verdict };
 const clients: Client[] = [];
 const tasks: Task[] = []; // newest first: open needs + recently fulfilled
@@ -280,20 +280,27 @@ async function produceDeliverable(sup: Supplier, client: Client, task: Task): Pr
 // An INDEPENDENT verifier scores the deliverable against each criterion (crisp where possible, judged
 // where fuzzy) and returns an accept/reject verdict. Payment settles only if accepted.
 async function verifyDelivery(need: string, criteria: string[], deliverable: string): Promise<Verdict> {
-  const sys = 'You are an IMPARTIAL verifier — NOT the supplier. Judge whether the deliverable satisfies the request and every acceptance criterion. Be fair but strict: reject vague, off-topic, or placeholder work. Reply with ONE line of MINIFIED JSON and nothing else: {"score":<0-100>,"accepted":<true|false>,"reason":"<max 10 words>"}';
-  const user = `Request: ${need}\nCriteria: ${criteria.join(' | ')}\nDeliverable:\n${String(deliverable).slice(0, 1500)}`;
+  const n = criteria.length || 1;
+  const sys = `You are an IMPARTIAL verifier — NOT the supplier. Score the deliverable against EACH of the ${n} acceptance criteria on 0-10 (10 = fully met, 0 = not at all). Then decide accepted — true ONLY if it genuinely satisfies the request (be fair but strict; reject vague, off-topic or placeholder work). Reply with ONE line of MINIFIED JSON and nothing else: {"scores":[${criteria.map(() => '<0-10>').join(',')}],"accepted":<true|false>,"reason":"<max 10 words>"}`;
+  const user = `Request: ${need}\nCriteria:\n${criteria.map((c, i) => `${i + 1}. ${c}`).join('\n')}\nDeliverable:\n${String(deliverable).slice(0, 1500)}`;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const out = await callClaude(sys, user, 120);
+    const out = await callClaude(sys, user, 150);
     if (!out) continue;
     const m = out.match(/\{[\s\S]*\}/);
-    if (m) { try { const j = JSON.parse(m[0]); if (typeof j.accepted === 'boolean') return { score: Math.max(0, Math.min(100, Number(j.score) || 0)), accepted: j.accepted, reason: String(j.reason || '').slice(0, 120) }; } catch { /* try text fallback */ } }
-    // Text fallback: infer from accept/reject words + a number.
+    if (m) { try {
+      const j = JSON.parse(m[0]);
+      if (Array.isArray(j.scores) && typeof j.accepted === 'boolean') {
+        const scores = j.scores.map((x: any) => Math.max(0, Math.min(10, Number(x) || 0)));
+        const score = Math.round((scores.reduce((a: number, b: number) => a + b, 0) / Math.max(1, scores.length)) * 10);
+        return { scores, score, accepted: j.accepted, reason: String(j.reason || '').slice(0, 120) };
+      }
+    } catch { /* try text fallback */ } }
+    // Text fallback: infer accept/reject + pull the first few 0-10 numbers as per-criterion scores.
     const acc = /\b(accept|pass|approved?|true)\b/i.test(out) && !/\b(reject|fail|false|not\s+accept)\b/i.test(out);
-    const sm = out.match(/\b(\d{1,3})\s*(?:\/\s*100)?\b/);
-    if (sm) return { score: Math.min(100, Number(sm[1])), accepted: acc, reason: 'scored from verifier text' };
+    const nums = (out.match(/\b([0-9]|10)\b/g) || []).map(Number).slice(0, n);
+    if (nums.length) { const score = Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10); return { scores: nums, score, accepted: acc, reason: 'scored from verifier text' }; }
   }
-  // Genuinely inconclusive after retries — settle but flag it honestly (do not fake a pass).
-  return { score: 0, accepted: true, reason: 'verifier inconclusive — settled unverified', unverified: true };
+  return { score: 0, accepted: true, reason: 'verifier inconclusive — settled unverified', scores: [], unverified: true };
 }
 
 async function fulfilOne() {

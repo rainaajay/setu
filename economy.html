@@ -202,7 +202,7 @@ function renderDemand() {
   $('demand-done').innerHTML = done.length ? deferNote + done.map((t) => `
     <div class="tx"><div class="who"><b>${escapeHtml(t.client)}</b> <span class="arrow">→</span> <b>${escapeHtml(t.supplier || '?')}</b> · ${t.price} Cr${ext(t)}${vbadge(t)}</div>
     <div style="font-size:12.5px;color:var(--muted);margin-top:2px">${escapeHtml(t.need)}</div>
-    ${t.criteria && t.criteria.length ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">acceptance criteria: ' + t.criteria.map((c) => escapeHtml(String(c))).join(' &middot; ') + '</div>' : ''}
+    ${t.criteria && t.criteria.length ? '<div style="font-size:11px;color:var(--muted);margin-top:5px;line-height:1.5">' + t.criteria.map((c, i) => { const sc = t.verdict && t.verdict.scores && t.verdict.scores[i]; const col = sc == null ? 'var(--muted)' : sc >= 7 ? 'var(--good)' : sc >= 4 ? 'var(--accent)' : '#b5714f'; return '&bull; ' + escapeHtml(String(c).slice(0, 88)) + (sc != null ? ' <b style="color:' + col + '">' + sc + '/10</b>' : ''); }).join('<br>') + '</div>' : ''}
     <div style="font-size:13px;margin-top:6px;white-space:pre-wrap">${escapeHtml(clean(t.deliverable || '').slice(0, 600))}</div>
     ${t.verdict && t.verdict.reason ? '<div style="font-size:11.5px;color:var(--muted);margin-top:5px;font-style:italic">verifier: ' + escapeHtml(t.verdict.reason) + '</div>' : ''}
     <div class="ago">${agoText(ageOf(t.at))}</div></div>`).join('')
