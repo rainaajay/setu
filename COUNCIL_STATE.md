@@ -12,16 +12,19 @@ The council is the standing refinement body for Setu. Roster (8 seats): **Tara**
 Run one cycle with Workflow scriptPath `setu/.claude/workflows/council-cycle.js` when the owner says
 "continue the cycle" / "agent council".
 
-**CYCLE 4 FOCUS (2026-07-27):** Since Cycle 3, a lot shipped — judge it live: (1) the LANDING now
-opens with a live gamified visualization (apps ↔ agents, animated real payments) + a one-click guest
-"drop a need" flow + the MCP block demoted to a "For developers" fold; (2) ALL 15 portfolio apps are
-now demand clients; (3) THE ARENA (arena.html) lets anyone launch an autonomous agent that commissions
-real work. Key questions for the seats: Is the new landing viz honest and genuinely legible to a
-newcomer, or is it style over substance? Is it honest that 14 of 15 apps post from a real-needs BANK
-while only Chitra is live-council-driven — is that overclaiming "your apps talking"? Does the arena
-feel real and safe (budget can't be burned)? Is the guest/arena "no wallet" path clear? Sutradhar:
-walk the NEW landing + arena.html + economy.html on live. Owner's open choices: council-wire the other
-apps vs build the earning/supplier arena — weigh which matters most.
+**CYCLE 6 FOCUS (2026-07-29):** The economy is now a VERIFIED WORK MARKETPLACE, app-to-app. Judge it
+live: (1) apps fulfil EACH OTHER's demand (pickSupplier prefers another app over the ring; SUPPLIES
+map); (2) every job is a VERIFIED JOB — genCriteria quantifies the demand into acceptance criteria, an
+INDEPENDENT verifier scores each criterion 0-10, and Setu settles ONLY if accepted (rejected work shown
+unpaid); (3) 8 apps flow real external demand (Chitra, Radar live-council-wired + 6 more via portable
+bridge). economy.html reframed "verified jobs, app to app" with per-criterion score badges. Key
+questions: Is the verifier TRUSTWORTHY (does it actually reject bad work, or rubber-stamp)? Is the
+acceptance/criteria loop honest and legible, or theatre? Is app-to-app matching sensible (right supplier
+for a need)? The OPEN on-ramp for outsiders to SUPPLY and VERIFY (not just demand) is unbuilt — is that
+the top gap? Budget: each verified job is ~3 brain calls — is the $60/mo envelope still safe (quota now
+6/hr)? Sutradhar: walk the LIVE economy.html + landing viz + arena on a real browser; confirm verified
+jobs render with criteria + scores and rejected-unpaid cases show honestly. The owner wants CONTINUOUS
+cycles — after this one, keep improving.
 
 ---
 
