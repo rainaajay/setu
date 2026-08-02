@@ -161,14 +161,49 @@ export class SetuWallet {
     );
   }
 
+  // Certificates this wallet has formed, so an authority that missed one can be caught up. Without
+  // it the wallet BRICKS: the next order uses seq = max(nextSeq), an authority below that refuses it
+  // as "future sequence", and once two of four are behind no order reaches quorum again — for good.
+  private certLog = new Map<number, Certificate>();
+
+  private async seqPerAuthority(): Promise<{ url: string; nextSeq: number }[]> {
+    const out = await Promise.all(this.committee.authorities.map(async (url) => {
+      try {
+        const j = (await fetch(`${url}/account?address=${encodeURIComponent(this.address)}`, {
+          signal: AbortSignal.timeout(8000),
+        }).then((r) => r.json())) as { nextSeq: number };
+        return typeof j?.nextSeq === 'number' ? { url, nextSeq: j.nextSeq } : null;
+      } catch { return null; }
+    }));
+    return out.filter((x): x is { url: string; nextSeq: number } => !!x);
+  }
+
+  // Replay, in order, the certificates a lagging authority missed. Certificates are idempotent and
+  // self-authenticating, so this needs no protocol change.
+  private async catchUp(views: { url: string; nextSeq: number }[], target: number): Promise<void> {
+    await Promise.all(views.map(async (v) => {
+      for (let s = v.nextSeq; s < target; s++) {
+        const cert = this.certLog.get(s);
+        if (!cert) return;
+        try {
+          await fetch(v.url, { method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ type: 'certificate', certificate: cert }), signal: AbortSignal.timeout(8000) });
+        } catch { return; }
+      }
+    }));
+  }
+
   private async networkSeq(): Promise<number> {
-    const seqs = (await this.each(async (url) =>
-      ((await fetch(`${url}/account?address=${encodeURIComponent(this.address)}`, {
-        signal: AbortSignal.timeout(8000),
-      }).then((r) => r.json())) as { nextSeq: number }).nextSeq,
-    )).filter((s): s is number => typeof s === 'number');
-    if (!seqs.length) throw new Error('network unreachable');
-    return Math.max(...seqs);
+    let views = await this.seqPerAuthority();
+    if (!views.length) throw new Error('network unreachable');
+    let target = Math.max(...views.map((v) => v.nextSeq));
+    // Heal any laggard BEFORE signing, or it refuses the order and quorum silently becomes unreachable.
+    if (views.some((v) => v.nextSeq < target)) {
+      await this.catchUp(views.filter((v) => v.nextSeq < target), target);
+      views = await this.seqPerAuthority();
+      if (views.length) target = Math.max(...views.map((v) => v.nextSeq));
+    }
+    return target;
   }
 
   /** Pay a recipient. Resolves when the payment is final (quorum certificate formed). */
@@ -197,6 +232,8 @@ export class SetuWallet {
       senderSignature,
       authoritySignatures: sigs.slice(0, this.committee.quorum) as Certificate['authoritySignatures'],
     };
+    this.certLog.set(seq, certificate);
+    if (this.certLog.size > 50) this.certLog.delete([...this.certLog.keys()].sort((a, b) => a - b)[0]);
     const latencyMs = performance.now() - t0;
     // The payment is final once the certificate exists; applying it is separate. A settle leg that
     // fails was previously never retried, leaving that authority permanently behind — it then refuses

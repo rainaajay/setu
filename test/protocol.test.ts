@@ -427,3 +427,45 @@ test('a settle leg that fails is retried until the lagging authority catches up'
   assert.equal(auths[3].balanceOf(alice.address), 400);
   for (const a of auths) assert.equal(a.balanceOf(bob), 100, `${a.name} agrees`);
 });
+
+// The brick: the wallet picks seq = max(nextSeq) across authorities, and an authority below that
+// refuses the order as "future sequence". Deliver two certificates to partial quorums and two of
+// four fall behind — then no order can reach quorum again and the address is dead forever. The
+// client now replays the certificates it holds to the laggards before signing, which unbricks it.
+// (Reproduced in-process; the same scenario must never be run against the live network.)
+test('partial certificate delivery cannot brick an address — the client catches laggards up', async () => {
+  const { auths } = committee();
+  const alice = generateKeyPair();
+  const bob = generateKeyPair().publicKey;
+  auths.forEach((a) => a.fund(alice.publicKey, 500));
+
+  const certs: Certificate[] = [];
+  // Payment 1 settles on only 3 of 4 (auth-1 misses it); payment 2 on only 2 of 4 (auth-2 too).
+  for (const [seq, appliedTo] of [[0, auths.slice(1)], [1, auths.slice(2)]] as [number, Authority[]][]) {
+    const order: TransferOrder = { sender: alice.publicKey, recipient: bob, amount: 10, seq };
+    const signed = signOrder(alice, order);
+    const sigs = await submit(auths, signed);
+    assert.ok(sigs.length >= QUORUM, `payment ${seq} should certify`);
+    const cert = makeCert(signed, sigs);
+    certs.push(cert);
+    await apply(appliedTo, cert);
+  }
+
+  // Two authorities are now behind: a third payment at seq 2 cannot reach quorum — the brick.
+  const stuck: TransferOrder = { sender: alice.publicKey, recipient: bob, amount: 10, seq: 2 };
+  const stuckSigs = await submit(auths, signOrder(alice, stuck));
+  assert.ok(stuckSigs.length < QUORUM, 'this is the brick: below quorum with two authorities behind');
+
+  // The fix: replay the cached certificates to the laggards, in order.
+  for (const a of auths) {
+    for (const cert of certs) await a.handle({ type: 'certificate', certificate: cert });
+  }
+
+  // The address works again, and all four agree.
+  const after = await pay(auths, alice, bob, 10, 2);
+  assert.equal(after.certified, true, 'after catch-up the payment reaches quorum again');
+  for (const a of auths) {
+    assert.equal(a.balanceOf(bob), 30, `${a.name} agrees on the recipient balance`);
+    assert.equal(a.balanceOf(alice.publicKey), 470, `${a.name} agrees on the sender balance`);
+  }
+});

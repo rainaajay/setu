@@ -420,7 +420,7 @@
       return Promise.all(AUTH.map(async (url) => {
         try {
           const r = await fetch(url + '/account?address=' + encodeURIComponent(address), { signal: AbortSignal.timeout(8000) });
-          return await r.json();
+          return { ...(await r.json()), url }; // carry the source so a laggard can be caught up
         } catch { return null; }
       }));
     }
@@ -455,9 +455,46 @@
 
     // Sign an order, collect a quorum certificate, and settle it — the real protocol path,
     // shared by the manual "pay" box and the resident-agent marketplace below.
+    // Every certificate this wallet forms, kept so a lagging authority can be caught up. Without
+    // this the wallet BRICKS: the next order uses seq = max(nextSeq), any authority that missed a
+    // certificate is below that and refuses with "future sequence", and once two of four are behind
+    // no order can reach quorum again — permanently, at that address. Certificates are already
+    // idempotent and self-authenticating, so replaying them is safe and needs no protocol change.
+    const CERT_KEY = 'setuCerts';
+    let certLog = {};
+    try { certLog = JSON.parse(localStorage.getItem(CERT_KEY) || '{}'); } catch { certLog = {}; }
+    function rememberCert(seq, certificate) {
+      certLog[seq] = certificate;
+      const seqs = Object.keys(certLog).map(Number).sort((a, b) => a - b);
+      while (seqs.length > 50) delete certLog[seqs.shift()]; // keep the tail bounded
+      try { localStorage.setItem(CERT_KEY, JSON.stringify(certLog)); } catch { /* quota — in-memory still works */ }
+    }
+    // Replay the certificates a behind authority missed, in order, so it can accept the next order.
+    async function catchUp(views) {
+      const target = Math.max(...views.map((v) => v.nextSeq));
+      await Promise.all(views.map(async (v) => {
+        if (!v || v.nextSeq >= target || !v.url) return;
+        for (let s = v.nextSeq; s < target; s++) {
+          const cert = certLog[s];
+          if (!cert) return; // gap we cannot fill from this browser; nothing to replay
+          try {
+            await fetch(v.url, { method: 'POST', headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ type: 'certificate', certificate: cert }), signal: AbortSignal.timeout(8000) });
+          } catch { return; }
+        }
+      }));
+    }
+
     async function settlePayment(recipient, amount) {
-      const views = (await accountViews()).filter(Boolean);
+      let views = (await accountViews()).filter(Boolean);
       if (!views.length) return { ok: false, error: 'network unreachable — try again in a moment.' };
+      // If the authorities disagree on our sequence, heal the laggards before signing anything —
+      // otherwise they refuse the order as "future sequence" and quorum quietly becomes unreachable.
+      if (new Set(views.map((v) => v.nextSeq)).size > 1) {
+        await catchUp(views);
+        views = (await accountViews()).filter(Boolean);
+        if (!views.length) return { ok: false, error: 'network unreachable — try again in a moment.' };
+      }
       const seq = Math.max(...views.map((v) => v.nextSeq));
       const order = { sender: address, recipient, amount, seq };
       const senderSignature = b64(await crypto.subtle.sign('Ed25519', keys.privateKey, new TextEncoder().encode(canonical(order))));
@@ -470,8 +507,9 @@
         } catch { return { ok: false, error: 'unreachable' }; }
       }));
       const sigs = responses.filter((r) => r.ok).map((r) => r.signature);
-      if (sigs.length < QUORUM) return { ok: false, error: 'no quorum: ' + responses.map((r) => r.error ?? 'ok').join('; ') };
+      if (sigs.length < QUORUM) return { ok: false, error: `only ${sigs.length} of 4 authorities answered — press pay again with the IDENTICAL amount and recipient; changing either will lock this payment slot. (${responses.map((r) => r.error ?? 'ok').join('; ')})` };
       const certificate = { order, senderSignature, authoritySignatures: sigs.slice(0, QUORUM) };
+      rememberCert(seq, certificate);
       const ms = performance.now() - t0;
       const settles = await Promise.all(AUTH.map((url) => fetch(url, { method: 'POST',
         headers: { 'content-type': 'application/json' },

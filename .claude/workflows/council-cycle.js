@@ -16,6 +16,16 @@ C:\\Users\\raina\\setu\\COUNCIL_STATE.md end-to-end: it is the source of truth f
 number, EVERYTHING already shipped across prior cycles (do NOT re-raise any of it), and the DEFERRED
 QUEUE — your primary backlog. Also read STATUS.md, capabilities.json and IMPLEMENTATION_NOTES.md.
 
+HARD SAFETY RULE — READ-ONLY AGAINST THE LIVE NETWORK. You may READ freely from the live deployment
+(GET /health, /stats, /recent, /account, /state; fetching public pages; Playwright walkthroughs of the
+public site, including using the wallet and faucet the way an ordinary visitor would). You must NEVER
+run a DESTRUCTIVE or state-corrupting experiment against the live authorities: no deliberately
+partial certificate delivery, no attempts to brick/exhaust/desynchronise accounts, no load or fuzz
+testing, no writes intended to prove a failure mode. If you need to demonstrate a failure, reproduce
+it IN-PROCESS in test/ against fresh Authority instances and cite that test — an in-process repro is
+STRONGER evidence than a live one, because it is deterministic and repeatable. A seat that corrupts
+shared live state has broken the owner's trust even if the finding is correct.
+
 THE OBJECTIVE: the best honest settlement rail for machine-to-machine commerce — instant, feeless,
 double-spend-proof, no blockchain — that a non-technical owner can understand, that FEELS live and
 usable as a sandbox, and that GROWS a real agent economy.
