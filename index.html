@@ -192,7 +192,7 @@
       });
       if (seen.size > 500) seen = new Set([...seen].slice(-250));
     }
-    poll(); setInterval(poll, 2500);
+    poll(); setInterval(poll, 4500);
 
     // Guest demand: one click drops a real need into the live economy; watch it get solved above.
     const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -500,7 +500,7 @@
       if (!box) return;
       if (!attempt) box.innerHTML = skeletonRows(3); // instant skeleton — never a dead "loading…"
       let state;
-      try { state = await (await fetch(ECONOMY + '/state', { signal: AbortSignal.timeout(9000) })).json(); }
+      try { state = await (await fetch(ECONOMY + '/state', { signal: AbortSignal.timeout(12000) })).json(); }
       catch {
         // Cold Fly machines wake in a few seconds; retry with backoff before giving up.
         if (attempt < 2) { setTimeout(() => loadMarket(attempt + 1), 2000 * (attempt + 1)); return; }
