@@ -18,3 +18,7 @@ STRATEGY.md
 # Node
 node_modules/
 npm-debug.log*
+
+# agent scratch space — never part of the repo
+scratchpad/
+test/*-repro.mjs
