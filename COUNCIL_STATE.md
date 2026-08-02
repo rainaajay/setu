@@ -64,6 +64,191 @@ What is the cost/abuse envelope of open demand generation (Bean Counter/Credit)?
 
 ---
 
+## SECURITY — 2026-08-02: emailed faucet report + the REAL bug it missed (commit badb488)
+
+An emailer ("Liam Tremblay") reported `/admin/fund` is unauthenticated on the live authorities and
+demanded **$5,000** before disclosing details, with a 72-hour deadline. **Assessment: the endpoint is
+open, but the framing is wrong and the demand should not be paid.** It is a deliberate, self-documented
+testnet faucet (`authority-server.ts:9` "devnet only, would not exist in production"; capabilities.json
+lists it as "an open testnet issuance endpoint"; the landing page has a **"faucet +500" button**). Credits
+are closed-loop TEST units — "mint unlimited currency" means minting valueless demo tokens. The quoted
+stats came from the public `/stats` endpoint. Pattern = beg-bounty/pressure, not responsible disclosure;
+there is no bounty programme. **Do not pay, do not negotiate.**
+
+**But auditing it found a REAL integrity bug the report missed:** `fund()` never validated `amount`, so a
+NEGATIVE value **drained** an account and broke value conservation. **Confirmed live** before fixing: a
+500-balance account dropped to 100 via `{"amount":-400}`.
+- `authority.ts fund()` now rejects non-integer/zero/negative amounts + malformed addresses and returns
+  `{ok,error}` — applies to EVERY caller, so state can never be corrupted. The size cap sits at the HTTP
+  layer instead, so in-process genesis (demo-issuer's 1M supply) still works.
+- `authority-server.ts`: per-call cap (`SETU_FAUCET_MAX`=1000), per-address balance cap (100k), per-IP
+  hourly limit (60), and it returns the error instead of a blind `{"ok":true}`.
+- `test/protocol.test.ts`: regression test (negative/zero/1.5/NaN/±Infinity refused, balance untouched).
+  **25/25 green.** Deployed to all 4 authorities; verified live: negative + oversized rejected, legit
+  faucet works, balance holds, payments still settle 4/4.
+
+**Cycle-6 items implemented this session (the council decided; I applied + verified):** economy.html
+absolute "settles only if it passes" → honest version naming the deferred path (43 deferred/hr proved the
+absolute false); stand-in disclosure restored with the VERIFIED count — **seven** apps live-council-wired
+(counted in the repos, not 15 and not 1); "settled this run" → "settled to date"; a verdict with no numeric
+scores renders "could not verify" instead of a false "rejected 0/100 unpaid"; economy.ts loadState drops
+pre-verification showcase entries; pitch.html latency reconciled to ~180 ms warm (p50) in all three places.
+**Still open from Cycle 6:** explorer.html false-offline (6s→10s) + false-green dot, index.html count
+reconcile + viz salience, §18 partition test + THREAT_MODEL.md, claims-consistency guard.
+
+**CONTINUOUS CYCLES:** the owner asked for cycles to run continuously. A recurring job now fires a full
+cycle (8 seats + Sutradhar) **every 2 hours at :23**, implements the EXECUTE items, tests, deploys and
+verifies. Caveat: session-only — it dies when the Claude session ends and auto-expires after 7 days.
+
+---
+
+## Cycle 6 — 2026-08-01 — Chair: Ajay — Grade: A- / flat — "finish the honesty reconciliation the code outran, and stop the two 'live' pages lying"
+
+Objective (one line): the best HONEST consensusless settlement rail for the agent economy —
+plain-spoken, feels live, feels like a usable sandbox, protocol integrity never weakened.
+
+Headline: five seats independently converged on the SAME miss — the verified-jobs marketplace and the
+multi-app wiring shipped fast post-Cycle-5, and three public surfaces now overclaim what the code does.
+So this is a reconciliation cycle: kill the live overclaims (pitch latency contradiction, economy
+"every job verified", the lost stand-in disclosure, a false-rejection rendering), make the explorer —
+the page literally titled "live window" — stop reporting healthy nodes as offline, and pin the one
+untested protocol surface (partition/catch-up) with a test + written threat model. No protocol-shape
+change, no new spend, no keys. Verified the exact cited lines live before deciding (pitch.html:66/77/83/104,
+economy.html:66/74/76-80, explorer.html:116/145, index.html:81-82/123/177).
+
+**EXECUTE (5):**
+1. **Public-surface number honesty sweep — pitch.html + whitepaper.html** (Shareholder HIGH+MED, CFO
+   HIGH+MED, Credit LOW, Sutradhar MED — 5-seat convergence). Cycle 5 claimed it unified the finality
+   figure but only touched index+whitepaper and MISSED pitch, which now self-contradicts on the headline
+   metric in the first 60s of the partner brief. (a) pitch.html:66 "about 200 milliseconds across
+   continents" → "about 180 milliseconds warm across four regions (p50; higher when a region is cold)";
+   (b) pitch.html:77 stat tile "~280 ms" / "typical payment finality across four regions" → "~180 ms" /
+   "warm payment finality, four regions (p50; higher when cold)"; (c) pitch.html:83 align "a few hundred
+   milliseconds" to the same figure; (d) pitch.html:104 replace the falsifiable superlative "(the piece
+   nobody else has)" — AP2/session-keys are prior art — with the true edge "(enforced in the settlement
+   layer itself — no chain, no smart-contract VM, checked in one round trip)"; (e) pitch.html:91 cut the
+   hype sentence "That is the market telling you this is real." (keep the factual Mastercard/Visa/Coinbase/
+   Google list — it makes the point unaided); (f) whitepaper.html:232 relabel the "280/280 chained spends
+   first-try" tile that sits beside "~180 ms warm … four regions" — it is the LAPTOP bench reading as a WAN
+   result; make the four-region figure the honest live "48/48 live" and tag the 280/280 as "on a laptop".
+
+2. **economy.html + economy.ts honesty bundle** (Sweetie HIGH×2 + LOW, Credit HIGH). The flagship page
+   over-claims and mislabels honest work. (a) economy.html:76-80 replace the absolute "Every job is a
+   verified job … the payment settles on the network only if it passes" with the honest, still-strong
+   version that names the deferred path: verified on a pass, rejected work shown unpaid, AND "when the
+   hour's shared AI budget is spent, payments still settle and the write-up is deferred — a demand surge
+   never becomes a cost surge" (124 unverified deferred settlements/hr live proves the absolute claim
+   false); (b) economy.html:74 RESTORE the Cycle-4 stand-in disclosure the Cycle-6 reframe overwrote
+   (Credit's HIGH regression) — after "The builder's 15 apps post genuine needs" add the true caveat that
+   ~eight are wired to live councils and the rest replay each app's needs bank until its bridge is added
+   (VERIFY the exact currently-emitting count against live /state before writing — football-league's schema
+   was "left for a manual pass", so if fewer than 8 emit, state the true number); (c) economy.html vbadge
+   :195-200 — when a verdict has an empty/absent numeric scores[] OR a reason indicating the verifier could
+   not score, render a neutral "could not verify" badge, NEVER "✗ rejected 0/100 · unpaid" (live id 10224
+   maligns Scribe's real CRE note as a false rejection); (d) economy.ts loadState :433 — drop persisted
+   showcase entries whose verdict predates the current shape (no numeric scores[] array) so the "verified
+   jobs" section only holds current-mechanism jobs (self-refills within ~an hour); (e) economy.html:66
+   counter label "payments settled this run" → "payments settled to date" (persistence made it cumulative).
+
+3. **index.html landing — honesty reconcile + make the marquee actually feel live** (Credit MED,
+   Shareholder LOW, Sweetie LOW; Sutradhar MED). (a) index.html:81-82 AND :177 change "Chitra is wired
+   live… the rest replay" (says only 1 wired — under-claims the shipped system, and directly contradicts
+   economy.html's "15") to the reconciled true count — "eight of the builder's apps are wired to their live
+   councils; the rest replay each app's genuine needs bank" (VERIFY the count against COUNCIL_STATE + live
+   /state, same number as item 2b); (b) index.html:123 SVG header "YOUR APPS — DEMAND" → "THE BUILDER'S
+   APPS — DEMAND" (a newcomer has no apps on the left; contradicts the honest prose beneath it); (c)
+   feels-live viz (owner's #1 recurring question): in poll()/build (~:166,:178-184) pre-seed `seen` with the
+   initial trade backlog on first build (or cap the opening replay to the last ~8) so the marquee stops
+   opening with a 10s ~60-dot flood that then goes nearly dead; in pulse() (:149-158) raise real-dot
+   salience (r 5→7, opacity 0.35→0.6, dur 1100→1600ms, brief fading trail) so the genuine ~8/min flow
+   always shows motion. HARD CONSTRAINT: never animate a payment that did not happen — no rate inflation.
+
+4. **Turn the §18 partition/catch-up surface from untested into TESTED + documented** (Moss MED — his
+   THE-one-change; priority (1) protocol integrity). Largest untested protocol surface, now live-observable
+   (authorities diverge: auth-1 ~59k settled vs others ~68k). test/protocol.test.ts: 4 authorities, run
+   several settlements for one sender delivering the cert to only 3 (skip auth-4); assert auth-4 rejects a
+   later cert with "sequence gap (authority behind)"; assert NO double-spend is reachable against the
+   lagging auth-4 (the healthy 3 hold the first-seen lock); replay the missed certs to auth-4 IN ORDER and
+   assert it heals and all four balances match. Write THREAT_MODEL.md (§24): single-operator trust,
+   client-driven settlement with no authority-to-authority anti-entropy, the sequence-gap stall +
+   ordered-replay heal, clock-skew on expiry, and the no-lock-cancellation liveness gap. Keep npm test green
+   (24→25). No protocol change, no deploy — pure integrity gain.
+
+5. **explorer.html — stop the "live window" page reporting healthy nodes as offline + false-green dot**
+   (Tara HIGH+MED, Bean Counter HIGH — convergence). (a) explorer.html:116 AND :145 raise
+   AbortSignal.timeout(6000) → 10000 to match index.html:305 — a measured 6.71s cold auth-1 this session
+   crosses the 6s cap and flips to a FALSE "offline"/"—" and under-reports the online counter (e.g. 3/4),
+   implying a sub-quorum network when it is just booting; the 2.5s poll still resolves a truly-dead node
+   fast. (b) freshness-gate the headline dot: give the header dot (:26/:61) an id, and in poll()/tickAgo()
+   reuse the already-computed server-now (:182) to derive age = now − newest tx.at; set the label from
+   up-count + age (up<3 → muted "◐ waking / degraded"; else age<15s → "● live"; 15–120s → amber "● quiet";
+   >120s → muted "● no new payments") — replacing the hardcoded always-green "A live window on the network"
+   that today renders green over a 0/4 outage. Reuses the exact index.html/economy.html:170-175 pattern
+   (Cycle 4 fixed those two and missed explorer). Closes both the false-offline and false-live signals + the
+   feed-stall gap on the one page whose whole job is truthful live state.
+
+**Conflicts resolved:** Tara and Bean Counter proposed the identical explorer 6000→10000 timeout — merged
+into item 5. Shareholder/CFO/Credit/Sutradhar all flagged the pitch latency contradiction — merged into
+item 1. Sweetie (verified-jobs overclaim) and Credit (lost stand-in disclosure) both target economy.html
+honesty — complementary, both in item 2. App-wired count disagreement (index says 1, economy says 15,
+reality ~8): resolved by reconciling BOTH pages to one VERIFIED honest number (items 2b + 3a), with an
+explicit instruction to check live /state and downgrade if football-league's un-schema'd bridge means
+fewer than 8 currently emit — never assert a wiring the code can't back.
+
+**DEFER (Cycle 7 queue, ordered):**
+- **Claims-consistency guard** (CFO): scripts/check-claims.mjs (or test/claims.test.ts) greps
+  index/pitch/whitepaper for the canonical latency/throughput/quorum tokens and asserts a single numeric
+  value per metric across pages; wire into npm test. This EXACT miss (pitch left at 280ms) is what Cycle 5
+  did; the guard permanently closes the recurring finding class. Top of the queue — prevention, not a live
+  fix, so it yielded a slot to the five live fixes this cycle.
+- **Widen the two 2.5s poll loops to ~4.5s + raise index.html loadMarket timeout 9000→12000** (Bean
+  Counter): a single /state takes 2–8s on shared-cpu-1x, so 2.5s polling launches overlapping in-flight
+  requests onto the same starved CPU; ~4.5s roughly halves pressure and still feels live. loadMarket's 9s
+  is <1s of margin over a measured 8.2s /state → can show a false "couldn't load the market".
+- **Move the per-settlement copyFileSync whole-file .bak off the hot path** (Bean Counter): keep the
+  crash-safe atomic temp+rename on every settle, move .bak regeneration to a periodic/boot timer (keep a
+  .bak; keep test/persistence.test.ts green). Deferred, not dropped — the idle gateway proves persist isn't
+  today's dominant latency factor, and it needs npm-test-green + a setu-economy deploy. NOT an escalation
+  (perf change, wire format + safety unchanged), but it touches tested persistence so it wants a careful
+  pass, not a rushed one.
+- **Bounded clock-skew tolerance on delegation-expiry** (Moss LOW): EXPIRY_SKEW_MS=5000 at authority.ts:284
+  + a test that authorities within SKEW agree at the boundary (no quorum split). Loosening only the expiry
+  lower-bound by a small bounded amount cannot mint value or bypass caps. Needs a deploy; the §18 test
+  (item 4) may inform it.
+- **Honest retries must not burn rate-limit tokens** (Moss LOW): short-circuit the exact idempotent-retry
+  re-sign BEFORE bucket.tryConsume() (authority.ts:239-256) so a client re-presenting its own valid pending
+  order to reach quorum under a partition isn't throttled into a stall. Needs a deploy.
+- **/stats settled/volume are per-process, not network totals** (Moss LOW, Sutradhar LOW): they reset on
+  restart (persist() serialises only accounts+delegations), so the explorer committee tiles read as a
+  "lagging node" when auth-1 was merely restarted — this is display-honesty, NOT balance drift. Either
+  persist the counters or relabel the tiles per-authority-since-restart.
+- **economy "Credits in circulation" (360) understates faucet-minted balances** (Sutradhar LOW): relabel to
+  "service-ring genesis supply" OR compute true circulating (sum of all agent+client balances) in
+  economy.ts /state and bind c-supply to that.
+- Still open from Cycle 5: the OPEN on-ramp for OUTSIDERS to SUPPLY and VERIFY; human-verifier option;
+  per-criterion scoring in the verdict (v1 holistic); football-league council schema.
+
+**DROP:**
+- pitch.html §04 "That is the market telling you this is real." — cut as hype (executed inside item 1e);
+  the factual incumbents list validates the CATEGORY, not Setu, and makes the point without editorial.
+
+**ESCALATE:** none. No item spends beyond caps, needs credentials/keys, or changes protocol shape; none
+needs the owner's ANTHROPIC_API_KEY (already a Fly secret). Item 4 is test+doc only. Items 1/3/5 are HTML
+(Vercel via the .vercelignore allowlist); item 2 also touches economy.ts loadState (a normal setu-economy
+deploy, no protocol change).
+
+**Deploy note:** items 1/3/5 + economy.html ship to Vercel; item 2's economy.ts loadState filter needs a
+`flyctl deploy` of setu-economy after `npm test`; item 4 is repo test + doc (no deploy) and must keep
+`npm test` green (25). If flyctl auth fails, use FLY_API_TOKEN=$(cat scratchpad/fly_token) per the Cycle-5
+ops note.
+
+**NOT CONVERGED** — three live HIGH overclaims (pitch latency contradiction, economy "every job verified",
+the regressed stand-in disclosure), a live false-rejection rendering, a false-offline/false-green explorer,
+and the largest untested protocol surface all remained at cycle start. That is not a cosmetic-polish-only
+state; material honesty + working-experience + integrity items are shipping and more sit in the queue.
+
+---
+
 ## Cycle 5 — 2026-07-28 — executed the top of the Cycle-5 queue (owner ran it)
 
 Four items shipped + verified live (economy + 4 authorities + Vercel; npm test 24/24):
