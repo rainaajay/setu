@@ -12,6 +12,305 @@ The council is the standing refinement body for Setu. Roster (8 seats): **Tara**
 Run one cycle with Workflow scriptPath `setu/.claude/workflows/council-cycle.js` when the owner says
 "continue the cycle" / "agent council".
 
+## Cycle 11 — 2026-08-02 — Chair: Ajay — Grade: C+ / flat — "five cycles have proved this council can ship about one item, so this cycle decides five SMALL ones and makes `npm test` the thing that says whether they shipped"
+
+Objective (one line): the best HONEST consensusless settlement rail for the agent economy —
+plain-spoken, feels live, feels like a usable sandbox, protocol integrity never weakened.
+
+Headline: I verified every load-bearing claim below by grep, by reading the code, and by curling the
+live network before deciding. **(a) The hard-rule breach is now THREE cycles old and is the single
+worst thing on this project.** `grep -ic "single operator|one operator|replication|centralis"` against
+the LIVE `setu-mocha.vercel.app/pitch.html` → **0**, while `:79` sells "3-of-4 signatures... one node
+can fail or misbehave" and `:99` sells two mutually-distrusting parties a payment that "cannot be
+quietly reversed". Both properties are true only if the four signers are independently controlled.
+`capabilities.json:5` and `THREAT_MODEL.md:106-109` both say plainly that they are not. Describing this
+deployment as decentralised by omission, on the one document written to be handed to a partner, is the
+owner's non-negotiable — breached, decided in Cycle 10, never shipped. **(b) Something DID ship this
+time, and I am recording it fairly:** commit `090f8bc` landed `booted` / `sumSeq` / `certsHeld` in
+`stats()` and the explorer's "behind by N" and "since each authority last restarted" relabel — I
+confirmed all of it live (`auth-1 sumSeq 130,413` vs `auth-3 145,172`, `certsHeld 405/533/532/530`,
+deployed `explorer.html:146` renders `behind by`). That is Cycle-10 item 3, and it is the first
+decided item to reach production in three cycles. **(c) The rest of Cycle 10 did not ship, again:**
+`grep -c validAddress src/authority.ts` → **0** (fourth time decided); `grep -c MAX_BODY
+src/authority-server.ts` → **0**; `grep -c two-minute primer.html` → **0** (TENTH cycle);
+`grep -c 183 whitepaper.html` → **4**; `ls test/shipped.test.ts` → absent; `capabilities.json:3` still
+`2026-07-28` and `:36` still publishes **26 tests** against a suite I measured at **35 green**;
+`packages/setu-gateway/demo.ts:33` still reads `card.skills[0].price` and still throws on the first
+line a technical partner runs (Cycles 8, 9, 10). **(d) The diagnosis is SIZE, not motivation.** The
+Shareholder is right and it is the most useful finding in this packet: Cycle 10's item 4 had six
+lettered sub-items across six files and item 5 was a ~40-string enforcement test; neither was small
+enough to land. This council's demonstrated throughput is roughly ONE item per cycle. So this cycle
+decides five items that are each small enough to write in one sitting, ordered so the two cheapest
+close the hard-rule breach, and makes item 2 the mechanism that reports whether the rest shipped.
+**(e) A new CRITICAL that is real and that I am handling by disclosure, not by code:** Moss proved
+in-process (`scratchpad/moss-probe2.ts`) that anti-entropy is STRUCTURALLY BLIND to delegated
+settlement — `src/authority.ts:450` gates the certificate log on `order.delegation === undefined`, and
+`digest()` iterates `this.accounts` only, so a delegated certificate missed by one authority splits the
+server-enforced budget permanently and silently. Confirmed by reading both functions. Meanwhile
+`THREAT_MODEL.md:37` lists divergence as DEFENDED with a named test and `capabilities.json:17` lists
+delegated budgets as implemented-tested/live with limitations that omit this entirely. That is the
+"public claims must match tested capabilities" rule, breached. The code fix is ~85 lines; the honesty
+fix is four lines and ships this cycle inside item 3, with the code fix at the top of the queue.
+
+**EXECUTE (5) — every item is small on purpose:**
+
+1. **`pitch.html` — say who runs the four authorities, and delete the four overclaims** (Credit
+   CRITICAL, Shareholder CRITICAL ×2, third cycle decided; the owner's non-negotiable). HTML only,
+   Vercel via the `.vercelignore` allowlist, six edits, no deploy of anything else:
+   (a) after `:69` insert — "**Network reality:** the four regions are four Fly apps under a **single
+   operator** — replication, not decentralised governance. Self-hosting and consortium operation are
+   the point; neither is proven yet, and nobody outside the operator has run an authority."
+   (b) `:79` stat tile → append "— on this testbed all four are run by us".
+   (c) `:100` delete "sub-second finality"; `:104` delete "instant finality" and delete the trailing
+   "— measured, not promised" (it governs self-hosting, which has no `capabilities.json` entry at all,
+   and no-chargeback-liability, which is a legal property of an unregulated testnet).
+   (d) `:83` delete "a **resident economy of agents** is paying each other for services on it as you
+   read this" and `:80` drop "and a running agent economy" from the stat tile — Sweetie and the
+   Shareholder independently measured 61 of 61 trades settling at a hardcoded `price: 2`
+   (`economy.ts:227`, `:682`), zero residents as buyers, four of seven residents holding 0 Cr. It is
+   the fastest claim on the site for a partner to falsify with one `curl`.
+   Nothing true is removed: the ~1 s finality tile, the £0 fee, the 3-of-4 rule and the server-enforced
+   delegation all stay, and (a) makes the 3-of-4 tile honest rather than weaker.
+
+2. **`test/shipped.test.ts` — SIX assertions, not forty** (Shareholder HIGH, re-scoped by him after his
+   own oversized version failed to land; Moss MEDIUM). This is the enforcement layer and it is
+   deliberately tiny enough to write in the same commit as item 1:
+   (i) `pitch.html` CONTAINS "single operator"; (ii) `/sub-second|instant finality/i` ABSENT from
+   `pitch.html`; (iii) `/183\s?ms/` ABSENT from `whitepaper.html`; (iv) `primer.html` CONTAINS
+   "two-minute"; (v) `index.html` does NOT contain "AGENTS — SUPPLY"; (vi) the count of `^test(`
+   across `test/*.test.ts` EQUALS the number quoted in `capabilities.json` and `STATUS.md`.
+   Assertions (iii) and (iv) will be RED on the first run — that is the point: they are the two
+   longest-running unshipped decisions on the board (four and ten cycles), and a red suite is a fact
+   that cannot be written around in a commit message. Fix `whitepaper.html`'s four `~183 ms` instances
+   (`:232, :248, :331, :343`) to the one canonical WAN figure and insert the primer's two-minute box in
+   the SAME commit to turn them green. **Four cycles of exhortation have failed; a guard small enough
+   to ship beats a guard that is complete and absent.**
+
+3. **The register truth commit — repo files only, no deploy, ~12 lines** (Shareholder HIGH ×2, Credit
+   HIGH, Moss CRITICAL disclosure-half). (a) `capabilities.json:3` `generated` → `2026-08-02`; `:36`
+   `tests` → the MEASURED count (35 today, +item 5's new tests — measure with
+   `grep -h '^test(' test/*.test.ts | wc -l`, do not assume); `STATUS.md:28` the same number and
+   breakdown. The 35-test core is the strongest asset here and it is published 26% short — that is
+   exactly backwards for a project whose pitch is honest reporting. (b) `capabilities.json:17`
+   (delegated budgets) `limitations` gains: "anti-entropy does NOT cover delegated settlement — a
+   delegated certificate missed by one authority is not detected by digest comparison and is not
+   repairable by certificate pull, so a missed delegated payment splits the enforced budget across
+   authorities silently and permanently." (c) `THREAT_MODEL.md:37` — the "Diverged authority" row is
+   narrowed to "**direct** settlement only", and gap #1 gains the delegated case plus the honest
+   residual already true of the direct path: **certificates settled before durable retention began are
+   unrepairable — no authority holds them** (live now: auth-1 is 14,759 behind and rising ~450/day;
+   `certsHeld` is 405-533 against that gap). (d) one line, `packages/setu-gateway/demo.ts:33` →
+   `card.payments.price.amount` / `card.payments.price.asset` — decided in Cycles 8, 9 AND 10; the only
+   runnable proof of the x402 claim still throws a TypeError on step 1.
+
+4. **The wallet and explorer stop failing silently — one HTML deploy, ~15 lines** (Tara CRITICAL +
+   HIGH ×2 + MEDIUM, Sweetie CRITICAL + HIGH; owner priority (2)). All `index.html` / `explorer.html`,
+   Vercel only:
+   (a) `index.html faucet()` `:450` — replace `.then((r) => r.ok).catch(() => false)` with a map
+   carrying `{ ok, status, error }` from the JSON body. Branch before `:453`: on any 429 log "the
+   faucet's hourly limit for your network is used up (60 calls per IP per hour); it resets on the hour
+   and reloading will not help"; on any 400 log the authority's `error` VERBATIM; log a network
+   message only when every response has `status 0`. Tara proved live that `POST /admin/fund
+   {"amount":5000}` returns `400 {"error":"amount must be a positive integer <= 1000"}` and the wallet
+   throws that body away, then tells the visitor to wait — advice that cannot work, on the first thing
+   a first-time visitor clicks.
+   (b) DELETE the "waking up" phrase family (`:167, :168, :179, :206, :453, :551`). All six
+   `deploy/*/fly.toml` set `auto_stop_machines = false` + `min_machines_running = 1`; there is no wake.
+   It is inherited from an earlier deployment shape and now hides rate limits, caps and genuine
+   outages behind one false cause. Third cycle a seat has had to correct a "cold machine" premise.
+   (c) `index.html refreshBalance()` `:432-434` — the quorum caveat shipped, but the WINNER is still
+   chosen by `Object.entries`, and V8 enumerates integer-like keys ascending, so a 2-2 split renders
+   the LOWER balance. Tara reproduced it in node: the visitor is told "500 minted on 2/4" and shown
+   `0 — unconfirmed`. Use a `Map` and break ties on the HIGHER balance:
+   `[...counts].sort((a,b) => b[1]-a[1] || b[0]-a[0])[0]`.
+   (d) `index.html:123-124` — DELETE the `label(165,28,"THE BUILDER'S APPS — DEMAND")` and
+   `label(655,28,'AGENTS — SUPPLY')` calls. **This is the standing instruction from Cycle 10 firing on
+   the fifth deferral.** Sweetie measured 15 of the 16 participants in the last 61 payments on BOTH
+   sides; the labels assert a split the payment data contradicts. Two deleted lines, guarded by item
+   2(v).
+   (e) `explorer.html:68` — DELETE the "units moved" tile. Live it renders 75 against a
+   145,000-settlement ledger; `volume` is a per-process tally absent from `persist()` exactly as
+   `settled` is, and `settled` already carries the activity signal AND now carries the honest
+   qualifier. One deleted line beats a second relabel.
+   (f) `explorer.html` — under the node list, one static line: "An authority that fell behind before
+   durable certificate retention began cannot be repaired — no authority holds the certificates it
+   missed, so 'behind by N' will not fall. See THREAT_MODEL.md." A number that only ever rises with no
+   explanation reads as a network that is breaking rather than one that has disclosed a bounded
+   historical loss.
+
+5. **Bound the settlement writer's inputs and fix the gate ORDER — one function, ~20 lines of src, one
+   deploy** (Moss HIGH ×2, Bean Counter; fourth time decided; owner priority (1)). `src/authority.ts`:
+   add `private static validAddress(a: unknown): a is string { return typeof a === 'string' && a.length >= 32 && a.length <= 200; }`
+   and use it in THREE gates so there is ONE rule — replace the inline check in `fund()` (:192-193),
+   add `if (!Authority.validAddress(order.recipient)) return { ok:false, error:'bad recipient' };` in
+   `handleOrder` right after the self-payment guard (:318-319), and the SAME line in
+   `handleCertificate` after its self-payment guard (:405-406), because `:442` is what CREATES the
+   account. Then MOVE the bucket block (`:321-323`) BELOW the `unknown sender` check (`:330`), below
+   the seq checks (`:332-333`) and below the exact-match pending branch (`:337-338`); mirror it in
+   `handleDelegatedOrder` after `unknown delegation` (`:364`) and after its exact-match branch
+   (`:372`). `src/authority-server.ts readBody` (:51-58): accumulate `body.length` against
+   `SETU_MAX_BODY` (default 65_536), `req.destroy()` + reject `'body too large'`. **Also one line, same
+   deploy:** `authority-server.ts:93` `/health` → return `booted`, `sumSeq`, `certsHeld` from
+   `authority.stats()` — the fields already exist and `/health` is what a monitor polls, yet it returns
+   a constant `ok:true` from an authority 14,759 settlements behind (Tara MEDIUM, one line, no new
+   work). Tests in `test/protocol.test.ts`: (i) recipient `''`, an 8-char string and
+   `'X'.repeat(1_000_000)` refused at BOTH gates with `stats().accounts` and the state-file size
+   unchanged (Moss settled a 1 MB recipient 4/4 and measured a 1,000,149-byte state file AND a
+   1,000,431-byte `certs.jsonl` — the durable log has DOUBLED the blast radius and anti-entropy
+   replicates it to all four regions); (ii) 20,000 refused unknown-sender orders leave
+   `buckets.size === 0` (he measured 20,000 buckets / +5.6 MB from orders that were all refused —
+   an unbounded unauthenticated allocation on the settlement writer, un-throttleable because each
+   order carries a fresh key); (iii) 20 identical resubmissions of one locked order all return ok
+   while a 6th DISTINCT order is still rate limited — `index.html:510` explicitly tells the visitor to
+   re-press with an identical order and the protocol currently punishes them for obeying it.
+   `npm test` green, then `flyctl deploy` ×4. Refuses nothing honest: every live address is a 60-char
+   Ed25519 SPKI base64.
+
+**Conflicts resolved:**
+- **Moss's delegated anti-entropy code fix vs the throughput reality — I am OVERRULING his slot and
+  taking the disclosure instead, and I want the reasoning on the record because it is uncomfortable.**
+  His finding is correct, is the most serious protocol hole on the board, and he proved it in-process
+  rather than on production, which is exactly right. But five cycles have shipped roughly one item
+  each, and his own proposal 1 is ~85 lines across two files plus a non-vacuous four-authority test,
+  while proposal 2 is ~20 lines in one function closing a remote unauthenticated OOM of ALL FOUR
+  regions that has now been decided four times and made materially worse by the durable log. Protocol
+  integrity is not weakened by deferring the delegated fix — the hole exists today either way. What IS
+  fixed today, at four lines, is the honesty breach: `THREAT_MODEL.md:37` and `capabilities.json:17`
+  currently claim the hole is defended. Item 3(b)/(c) says what is true; his code fix is item 1 in the
+  Cycle-12 queue with the slot pre-committed. **If it loses a second cycle, it takes a slot ahead of
+  everything except a hard-rule breach.**
+- **Tara vs Moss on `stats().volume`.** Both want it gone; they differ on where. Resolved: DELETE THE
+  TILE now (item 4e, one HTML line, no deploy) and leave the field in `stats()` until the next
+  authority deploy touches the wire format, rather than shipping a field deletion and a page edit in
+  two different deploy channels on the same cycle. Recorded as a one-word rider on the next
+  `authority.ts` commit.
+- **Tara's O(1) `sumSeq` vs Bean Counter's measurement.** Tara proposed making `sumSeq` incremental
+  because `/stats` is polled every 4.5 s and the loop grows with the account count. Bean Counter
+  measured account counts twice, 165 s apart: **820/816/816/816 both times — zero growth** — and
+  explicitly corrected his own seat's standing "~4,300 accounts/day" premise. A sum over 824 Map
+  entries at a 4.5 s poll is not a cost. **The ~4,300 accounts/day figure is struck from the council
+  record**, and with it the urgency of the deferred state-growth instrumentation item. The `/health`
+  half of Tara's proposal DOES ship (item 5) because it is one line and it is an honesty fix, not a
+  performance one.
+- **Sweetie's viz redraw — the standing instruction fires.** Cycle 10 recorded: if the redraw loses a
+  fifth cycle, delete the two column labels rather than defer again. It lost a fifth cycle. The labels
+  die in item 4(d) and item 2(v) guards them. Sweetie's own drop candidate agrees — she asks for the
+  redraw to be dropped as a council item because keeping it queued has been BLOCKING the two-line
+  deletion. Accepted: the geometry is dropped; only the ≤520 px mobile branch survives, as a small
+  DEFER (node labels render at 4.8 CSS px on a 430 px phone).
+- **Bean Counter's negative-cache vs his own earlier generic backoff.** He re-measured after item 2 of
+  Cycle 10 shipped, as instructed, and the re-measurement changed his answer — a blanket loop backoff
+  would delay repair of genuinely NEW gaps, whereas backing off only ranges every peer has PROVEN it
+  cannot serve does not. Generic backoff is DROPPED; the negative cache is the top cost item in the
+  queue and rides the next authority deploy. That is the seat doing its job: measuring rather than
+  inheriting.
+- **The Shareholder's `price: 2` fix vs deleting the brain's price branch.** He offers either. Neither
+  takes a slot: the falsifiable public CLAIM dies in item 1(d), which is the part that breaches the
+  honesty rule. Whether the economy's price lever is wired or removed is a design question about a
+  demonstration subsystem and belongs behind the ring diagnosis it depends on.
+
+**DEFER (Cycle 12 queue, ordered — item 1 has a pre-committed slot):**
+- **Give delegated settlement the anti-entropy the direct path has** (Moss CRITICAL). Key delegated
+  certificates `del:${delegation}:${seq}` in the cert log (`authority.ts:450`), emit delegation rows
+  from `digest()` (:226-230), add `seqFor(key)` routing `del:` to `delegationInfo().nextSeq`, and use
+  it at `authority-server.ts syncOnce` :184/:188. Test transcribed from `scratchpad/moss-probe2.ts`,
+  asserting the divergence FIRST so it is provably non-vacuous. Additive digest rows, unchanged
+  certificate shape — an old peer answering `/certs?sender=del:...` returns `[]` and the loop falls
+  through, so a rolling deploy degrades gracefully.
+- **Negative-cache the unrepairable sync gaps** (Bean Counter HIGH). `deadGap` Map keyed
+  `${sender}:${from}` with exponential `until`, cleared on any successful apply, plus the 3-line
+  `syncing` re-entrancy flag. Measured: 25 requests per round, 0 certificates served, 24 empty
+  replies; 288,000 req/day across four authorities to move nothing. −96% requests.
+- **Make `/digest` incremental** (Bean Counter HIGH). `lastSeqAt` per account, optional `?since=`,
+  full digest every 20th round. 629.4 MB of the subsystem's 634.6 MB/day is this one payload
+  (54.5 KB × 2880 rounds × 4) re-sent to communicate the same 8 stale senders. Backward compatible —
+  a peer omitting `since` gets today's bytes exactly.
+- **Cap the certificate log on DISK, not only in memory** (Moss HIGH). `CERT_LOG_MAX` evicts the Map;
+  the append is unbounded and the trim runs at boot INSIDE `loadCertLog`, after `readFileSync` has
+  materialised the whole file. He measured 200 on-disk lines against an in-memory cap of 10. A boot
+  OOM on a 256 MB VM is a crash loop across all four regions at once — strictly worse than a runtime
+  OOM. Stream the tail with `createReadStream` + `readline`; add a byte budget at the append site.
+- **Instrument the dead service ring** (Sweetie, fifth carry). `economy.ts tradeOnce()` :572's empty
+  `catch { /* transient */ }` is the reason five cycles have queued "diagnose the ring" without a
+  diagnosis — ~205 consecutive silent failures in a 502 s window. `ringFailures` / `ringLastTradeAt` /
+  `ringLastError` on `/state`, and `economy.html:154-157` renders "no agent decision for Xh" once the
+  newest thought is over 60 minutes old (live: 374 minutes). Surfacing the error converts the next
+  slot into a fix rather than another investigation.
+- **`src/demo-allowance-live.ts` over `committee-prod.json`** (Shareholder HIGH, fourth deferral) —
+  print the authorities' VERBATIM refusals for per-payment cap, exhaustion and revocation over the
+  live `POST /`, `npm run demo:allowance:live`, linked from `pitch.html:67`. Server-enforced delegation
+  is the only property on that page an incumbent cannot match, and a partner still cannot run it.
+- **Assert the x402 loop as a real test** (`test/gateway.test.ts`: 402 shape → pay → 200 → replay 402).
+  Item 3(d) fixes the crash; this makes the evidence durable.
+- **A ≤520 px viewBox/font branch on the landing viz** (Sweetie MEDIUM) — three lines, not the redraw.
+- **Delete `totals.supply` from the economy `/state` payload** (Tara, carried) — rides the next
+  economy deploy.
+- **Demote `economy.html`'s "The residents — who they are" panel** (Sweetie, fourth carry).
+- Still open from Cycle 5/6: the OPEN on-ramp for OUTSIDERS to SUPPLY and VERIFY; human-verifier
+  option; football-league council schema.
+
+**DROP:**
+- **`MONTHLY_BUDGET_USD` 60 → 20** — Bean Counter verified his OWN deferred item and killed it. The cap
+  is a real control, not a label: `brainOn()` (`economy.ts:103`) gates every call on it, the price
+  table at `:27` matches claude-haiku-4-5's actual $1/$5 per Mtok, and with no prompt caching anywhere
+  in the file the meter at `:497` is EXACT rather than an under-count. Live $0.53 across 770 calls.
+  Three files of churn for zero saving and zero honesty gain. **Recorded latent trap:** if
+  `cache_control` is ever added, `:497` silently under-reads and the cap stops being true.
+- **Generic exponential backoff on the whole sync loop** — superseded by the negative cache, which gets
+  the same 96% saving without delaying repair of real gaps.
+- **`syncApplied` as a `stats()` field** (Cycle-10 item 3's proposal) — a third per-process activity
+  tally on a wire format the explorer renders, the exact shape dropped twice already. `sumSeq` answers
+  the completeness question durably. If the sync loop's yield needs measuring, measure it in the log
+  line at `authority-server.ts:208`, not on a public endpoint.
+- **The geometric redraw of the landing viz as a council item** — see the conflict note. The false
+  labels die now; the geometry is not worth a slot it has lost five times.
+- **The resident economy as PUBLIC evidence** (Shareholder) — accepted in the narrow form: the
+  citations at `pitch.html:83`/`:80` die in item 1(d). It keeps running as an internal load generator
+  against the live rail; we stop calling a fixed-price round-robin a market.
+- **Persisting the `settled` / `volume` counters** — stays dropped, fourth cycle.
+- **Resetting the live testbed to clear the 14,759-certificate gap** — stays dropped. It would make
+  every number on the site agree tomorrow by erasing the evidence of a real defect from the only
+  surface that reports live state, on a site whose entire pitch is honest reporting. We disclose it
+  (items 3(c) and 4(f)).
+
+**ESCALATE:** none. Nothing here spends beyond a cap, needs a credential or key, or changes protocol
+shape. Item 5's guards TIGHTEN existing gates and refuse only what no honest client sends; moving the
+rate-limit charge below the existing checks changes no wire format and makes the protocol MORE
+permissive to honest retries. `/health` gains fields that already exist in `stats()` — additive and
+backward compatible. Items 1-4 are static pages and repo files. The ANTHROPIC_API_KEY is already a Fly
+secret and the brain's $60 cap is untouched and verified this cycle as a genuine control.
+
+**Deploy note:** items 1, 2, 4 are HTML + repo files → Vercel via the strict `.vercelignore` allowlist.
+Item 3 is repo files only. Item 5 needs `npm test` green then `flyctl deploy` ×4 in ONE deploy; if
+flyctl auth fails use `FLY_API_TOKEN=$(cat scratchpad/fly_token)` per the Cycle-5 ops note.
+**The verification is now mechanical and there is no excuse left:** run `npm test` LAST. Item 2's
+assertions (iii) and (iv) START RED — a green suite is the proof that `whitepaper.html`'s four
+`~183 ms` figures and the primer's two-minute box actually shipped, and assertion (vi) makes it
+impossible to publish a test count that is wrong by nine ever again. Then `curl` the DEPLOYED
+`pitch.html`, `index.html`, `explorer.html`, `primer.html`, `whitepaper.html` and
+`setu-auth-1..4/health` and grep for each shipped string and field. **Do NOT write "implemented and
+verified live" in a commit message on the strength of a repo diff — that assertion has now been false
+five cycles running.**
+
+**NOT CONVERGED** — a partner-facing deck that still never discloses the single-operator reality while
+selling a trust-between-strangers property, an unauthenticated unbounded write to the settlement writer
+now replicated to four regions and persisted twice by the subsystem shipped two cycles ago, an
+anti-entropy claim in the threat model that is structurally false for the marquee delegated path, a
+faucet that reports the authority's own refusal as a network outage and tells the visitor to wait, a
+register publishing 26 tests against 35 green, and a plain-words door that is still a 40-minute essay
+after ten cycles. That is not a cosmetic-polish-only state.
+**Grade C+, FLAT — carried from Credit's seat, and I agree with both the number and her trigger.**
+She graded C+ with the trajectory turning POSITIVE for the first time in four cycles, capped solely by
+the `pitch.html` hard-rule breach, and wrote: ship that one edit and it is B-. I verified the positive
+half myself — anti-entropy and the durable certificate log are genuinely live, `sumSeq`/`certsHeld`/
+`booted` are deployed and answering, the explorer truthfully renders "behind by 14,745", and the
+faucet's provably-false "will catch up" is gone from the shipped page. That is real repair in the
+code. The cap is real too: item 1 is six edits to one static file and it has now outlived three
+chairs' decisions. **The grade does not move until a decision recorded here becomes a string a `curl`
+can find.**
+
+---
+
 ## Cycle 10 — 2026-08-02 — Chair: Ajay — Grade: C+ / down from B- — "the release blocker we closed cannot converge, the partner deck never says who runs the four authorities, and ZERO of Cycle 9's five items shipped"
 
 Objective (one line): the best HONEST consensusless settlement rail for the agent economy —
@@ -284,6 +583,57 @@ it cannot actually close. Protocol integrity in the TESTED core keeps improving 
 guards landing, a correctly-shaped live 402). Everything else in the honesty chain — what we ship,
 what we say we shipped, and what we tell a partner — is now the weakest part of this product, and item
 5 exists because exhortation has demonstrably not fixed it.
+
+---
+
+## Cycles 10-12 — 2026-08-02 — implemented by the owner's loop — "make the divergence visible, then stop lying about failures"
+
+**Anti-entropy made to actually converge (79c1a3d).** The council proved the version shipped in 8d7e8c1
+COULD NOT converge: the certificate log was in-memory, so the very condition that makes a peer need
+certificates (a restart) was the condition that emptied the log holding them. Verified live — the gap
+was NOT closing (14,618 -> 14,619 over 60s) and all three peers served 0 of what auth-1 needed. My test
+passed only because its serving peer never restarted. Fixed: certificates are appended to a durable
+`<state>.certs.jsonl` (O(1) append, not the whole-file rewrite) and recovered+trimmed at boot; syncOnce
+now asks EVERY peer for a range, not just the one whose digest flagged it. Regression test "anti-entropy
+still works after the SERVING peer restarts" — proven non-vacuous (fails with the durable log disabled).
+Live confirmation: certsHeld 350-482 survived a deploy restart (would have been 0 before).
+
+**Divergence made visible (090f8bc).** `/stats` now carries `sumSeq` (total sequence applied, from
+PERSISTED state), `certsHeld` and `booted`. The explorer ranks its feed source by sumSeq — it had been
+sorting by `settled`, a per-process tally that resets on restart, while its own comment claimed "most
+complete ledger" (i.e. it was ranking by uptime). Any authority materially behind is now marked: auth-1
+renders **"online · behind by 14,768"** instead of a bare "online". Counters relabelled "(since each
+authority last restarted)".
+
+**Surfaces that stated what the code cannot do (090f8bc, 1a4bf8d).**
+- Faucet claimed unreachable authorities "will catch up" — `fund()` writes a balance with NO certificate
+  and the sync loop only replays certificates, so a faucet credit propagates to nobody, ever. Corrected.
+- Faucet collapsed every response to `r.ok`, so a 429 rate limit or 400 cap read as an outage and told
+  the visitor to wait — the one action that cannot help. Now reports which failure it actually was.
+  Also killed "the authorities may be waking up": every fly.toml sets min_machines_running = 1.
+- `refreshBalance()` showed a single authority's number as fact; now requires a QUORUM, else
+  "unconfirmed, only N of 4 agree". And its tie-break rendered the LOWER balance on a 2-2 split (V8
+  enumerates integer keys ascending, sort is stable) — a visitor saw "0" right after "500 minted".
+  Verified in node, fixed with a Map + explicit higher-balance tie-break.
+- Explorer now states plainly that a pre-2026-08-02 laggard CANNOT be repaired, so "behind by N" will
+  not fall.
+
+**OWNER DECISION OPEN — legacy divergence.** ~14,700 sequence numbers on 8 senders can never be
+repaired by any code: those certificates were never written to disk by any authority. It is now honestly
+displayed. The two options are (a) disclose permanently, or (b) RESET the testbed authority volumes now
+that retention is durable — the economy re-seeds itself and nothing of value is lost but live history.
+Claude's recommendation: (b). Not actioned — this is Ajay's call, not a code change.
+
+**Also:** council-agent scratch files were swept into a commit and removed (0ff4df9); `scratchpad/` is
+now gitignored. The council charter gained a HARD SAFETY RULE after a seat ran a destructive
+state-corrupting script against the LIVE authorities to prove the wallet brick — seats may read freely
+from live but must reproduce failures in-process.
+
+**Still open:** `/health` returns a constant `{ok:true}` and cannot report divergence, so any monitor
+reads 4/4 through a permanent gap; the explorer `/recent` loop breaks on an empty answer instead of
+trying the next authority; economy.html's brain badge has no upper staleness bound (a 4.5-hour-old
+thought still reads "deciding on a slow cadence"); synchronous whole-state writes still block the event
+loop; delegation-expiry clock skew; rate-limit consumed before the idempotent-retry check.
 
 ---
 
