@@ -25,7 +25,7 @@ decentralised governance. Independent operators are on the roadmap.
 
 ## Summary
 
-**Tested protocol core** (`implemented-tested`, `npm test` → 24 passing: 13 protocol + 5 e2e + 5 persistence + 1 economy smoke): quorum-signed
+**Tested protocol core** (`implemented-tested`, `npm test` → 26 passing: 15 protocol + 5 e2e + 5 persistence + 1 economy smoke): quorum-signed
 settlement, double-spend prevention, sequence/replay protection, Byzantine tolerance (f=1 of 4),
 value conservation, offline receipt verification, idempotent settlement, server-enforced
 delegated budgets (per-payment cap, cumulative total, expiry, revocation, agent identity), and
@@ -43,8 +43,13 @@ the A2A card (schema-shaped), issuance/reconciliation, and benchmarks (laptop + 
 production-scale).
 
 **Planned** (not built): policy simulation, principal-approval workflow, service registry &
-discovery, OpenAI tools & review bridge, authority rotation/governance, operator admin, status &
-incident pages, and the written threat model.
+discovery, OpenAI tools & review bridge, authority rotation/governance, operator admin, and status &
+incident pages.
+
+**Threat model** ([THREAT_MODEL.md](THREAT_MODEL.md), written 2026-08-02): states the single-operator
+trust model plainly, maps each defended property to a named test, and lists the open gaps —
+no authority-to-authority anti-entropy, no lock cancellation, clock-skew on delegation expiry, keys
+without HSM or rotation, and the deliberate public faucet. Not externally reviewed.
 
 **Demonstration only:** the resident agent economy — a controlled test environment, not evidence
 of a viable macroeconomy. It runs a **live, budget-capped LLM** (claude-haiku-4-5): a $60/mo hard

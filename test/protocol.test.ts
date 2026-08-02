@@ -297,3 +297,64 @@ test('faucet rejects negative, zero, and non-integer amounts (cannot corrupt bal
   assert.equal(a.fund('short', 10).ok, false);
   assert.equal(a.balanceOf('short'), 0);
 });
+
+// §18 — PARTITION / CATCH-UP. Settlement is client-driven: there is no authority-to-authority
+// anti-entropy, so an authority that misses a certificate (partition, timeout, client crash after
+// collecting quorum from the other three) falls behind and REFUSES later certificates with a
+// sequence gap. This test pins the real boundary: SAFETY holds throughout (the lagging authority can
+// never be used to double-spend, because the healthy majority still holds the first-seen lock), and
+// the lagging authority HEALS when the missed certificates are replayed to it in order.
+test('a partitioned authority stalls on a sequence gap, cannot be double-spent against, and heals on ordered replay', async () => {
+  const { auths } = committee();
+  const alice = generateKeyPair();
+  const bob = generateKeyPair().publicKey;
+  const carol = generateKeyPair().publicKey;
+  auths.forEach((a) => a.fund(alice.publicKey, 1000));
+
+  const healthy = auths.slice(0, 3); // auth-4 is partitioned for settlement
+  const lagging = auths[3];
+
+  // Two payments certify with a full quorum, but the certificates reach only the healthy three.
+  const certs: Certificate[] = [];
+  for (let seq = 0; seq < 2; seq++) {
+    const order: TransferOrder = { sender: alice.publicKey, recipient: bob, amount: 100, seq };
+    const signed = signOrder(alice, order);
+    const sigs = await submit(auths, signed);          // all four sign (they are reachable)
+    assert.ok(sigs.length >= QUORUM);
+    const cert = makeCert(signed, sigs);
+    assert.equal(await apply(healthy, cert), 3);       // but only the healthy three APPLY it
+    certs.push(cert);
+  }
+
+  // The lagging authority is now behind: it never applied seq 0 or 1.
+  assert.equal(lagging.balanceOf(alice.publicKey), 1000, 'lagging authority still shows the old balance');
+  assert.equal(healthy[0].balanceOf(alice.publicKey), 800);
+
+  // A later certificate is REFUSED by the lagging authority — an explicit gap, not silent divergence.
+  const order2: TransferOrder = { sender: alice.publicKey, recipient: bob, amount: 100, seq: 2 };
+  const signed2 = signOrder(alice, order2);
+  const sigs2 = await submit(auths, signed2);
+  const cert2 = makeCert(signed2, sigs2);
+  const gap = await lagging.handle({ type: 'certificate', certificate: cert2 }) as any;
+  assert.equal(gap.ok, false);
+  assert.match(gap.error, /sequence gap/);
+
+  // SAFETY: the lagging authority cannot be used to double-spend. A conflicting order at an
+  // already-settled sequence cannot collect a quorum, because the healthy majority holds the lock.
+  const conflicting: TransferOrder = { sender: alice.publicKey, recipient: carol, amount: 100, seq: 0 };
+  const conflictSigs = await submit(auths, signOrder(alice, conflicting));
+  assert.ok(conflictSigs.length < QUORUM, 'a conflicting spend must never reach quorum via the lagging authority');
+
+  // HEAL: replay the missed certificates in order, then the previously-refused one.
+  for (const c of certs) assert.equal((await lagging.handle({ type: 'certificate', certificate: c }) as any).ok, true);
+  assert.equal((await lagging.handle({ type: 'certificate', certificate: cert2 }) as any).ok, true);
+  await apply(healthy, cert2);
+
+  // All four authorities now agree, and value is conserved.
+  const addrs = [alice.publicKey, bob, carol];
+  for (const a of auths) {
+    assert.equal(a.balanceOf(alice.publicKey), 700, `${a.name} healed to the same balance`);
+    assert.equal(a.balanceOf(bob), 300);
+    assert.equal(supply(a, addrs), 1000, 'no value created or destroyed by the partition');
+  }
+});

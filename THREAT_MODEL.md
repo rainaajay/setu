@@ -1,0 +1,77 @@
+# Setu — threat model
+
+What Setu defends against, what it does **not**, and the boundaries a reader should judge it by.
+Written to be falsifiable: every claim here is either covered by a test in `test/` (named) or listed
+as an open gap. Nothing here has had independent external review.
+
+**Scope.** The settlement layer (`src/authority.ts`, `src/client.ts`, `src/certificates.ts`), the
+delegation model (`src/agents/allowance.ts`), and the live deployment (four authorities on Fly.io).
+The resident economy (`packages/setu-economy`) is a demonstration and is treated as untrusted input.
+
+---
+
+## 1. Trust model — state it plainly
+
+- **The committee is four authorities under a SINGLE operator**, one codebase, one cloud, related
+  credentials. This is **replication, not decentralisation**. A reader must not infer Byzantine
+  independence from the 3-of-4 quorum: the operator can rewrite all four.
+- **Credits are closed-loop test units**, not money and not a claim on anything. The faucet is public.
+- Safety threshold: **f = 1 of 4** (quorum 3). Two dishonest authorities break the safety argument.
+
+## 2. What is defended, and what proves it
+
+| Property | Mechanism | Test |
+|---|---|---|
+| No double-spend | First-seen lock per (account, seq) + quorum overlap | `protocol.test.ts` |
+| No value creation via transfers | Debit/credit conservation checked over the whole address set | `protocol.test.ts` |
+| No cross-track minting | `reservedAgainst()` subtracts every pending draw on a balance, so a direct and a delegated spend cannot both pass an independent balance check | `protocol.test.ts` (Cycle 4) |
+| Replay / stale sequence | Monotonic `nextSeq`; settled certs are idempotent | `protocol.test.ts` |
+| Byzantine authority signing everything | Quorum overlap — an equivocator cannot manufacture a second certificate | `protocol.test.ts` |
+| Forged / short-quorum receipts | Offline certificate verification against committee keys | `protocol.test.ts` |
+| Over-spend by a delegated agent | Server-enforced allowance: per-payment cap, cumulative total, expiry, revocation, agent identity | `protocol.test.ts` |
+| Faucet corrupting state | `fund()` rejects non-integer / zero / negative amounts and malformed addresses; HTTP layer adds per-call, per-balance and per-IP caps | `protocol.test.ts` (2026-08-02) |
+| Crash mid-write | Atomic temp+rename with one `.bak` generation; resilient load; refuses to start if all copies are unreadable | `persistence.test.ts` |
+| Partition / lagging authority | Explicit sequence gap (no silent divergence); safety holds; heals on ordered replay | `protocol.test.ts` (§18) |
+
+## 3. Known gaps — the honest list
+
+1. **No authority-to-authority anti-entropy.** Settlement application is entirely client-driven. An
+   authority that misses a certificate refuses all later ones for that sender (`sequence gap
+   (authority behind)`) until the missed certificates are replayed **in order**. Clients do not
+   generally retain them. *Safety is intact* (proven above); this is a **liveness/consistency** gap.
+   Live symptom: the four authorities' `settled` counters diverge.
+2. **No lock cancellation or timeout.** A pending order that gets a signature but never settles
+   freezes that (account, seq) — and its reserved funds — indefinitely. There is no protocol-level
+   cancellation. The resident economy papers over this by rotating a stuck client's wallet; the
+   protocol itself has no remedy. This is the most likely cause of a "stuck account" in practice.
+3. **Clock-skew on delegation expiry.** `Date.now() > Date.parse(expiresAt)` is evaluated per
+   authority with no tolerance, so at the expiry boundary authorities can split and an order stalls
+   below quorum. A bounded `SKEW_MS` tolerance would close it. Untested.
+4. **Rate-limit consumed before the idempotent-retry check.** An honest client re-sending its own
+   already-pending order burns a token each time and can be throttled while driving its valid lock to
+   quorum — a self-inflicted liveness throttle.
+5. **Key management.** Authority private keys are Fly secrets, **not** HSM-protected, with **no
+   rotation mechanism**. Compromise of two keys breaks safety; there is no recovery procedure.
+6. **No independent review.** Every `reviewed:` flag in `capabilities.json` is `false`.
+7. **Public faucet.** Deliberate and documented: anyone can mint bounded test Credits. Amounts,
+   per-address balance and per-IP rate are capped, so it cannot corrupt state or bloat it without
+   limit — but it means on-network balances carry no scarcity claim.
+8. **Denial of service.** Per-account token buckets price spam without fees, but there is no
+   protection against a distributed flood of well-formed orders from many addresses, and the
+   authorities run on 256MB shared-CPU machines.
+
+## 4. Explicitly out of scope
+
+- Smart contracts / general computation (deliberately given up — incompatible with consensus-free
+  settlement).
+- Privacy: orders and balances are visible to every authority, and the explorer publishes short
+  address prefixes and amounts.
+- Regulatory status: Credits are not money, not e-money, not a stablecoin, not a security.
+- Anything about the *content* produced by the resident economy's AI agents.
+
+## 5. If you are evaluating Setu
+
+The load-bearing question is **not** "is the cryptography right" — it is **"who runs the four
+authorities?"** Today: one person. Until authorities are operated by genuinely independent parties
+with rotated, HSM-held keys and an anti-entropy protocol, Setu is a **single-operator research
+network** that demonstrates a consensus-free settlement design. That is what it claims to be.
