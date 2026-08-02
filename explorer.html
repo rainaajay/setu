@@ -65,13 +65,19 @@
 
 <div class="counters">
   <div class="counter"><b id="c-settled">—</b><span>payments settled (since each authority last restarted)</span></div>
-  <div class="counter"><b id="c-volume">—</b><span>units moved</span></div>
+  <div class="counter"><b id="c-volume">—</b><span>units moved (since each authority last restarted)</span></div>
   <div class="counter"><b id="c-accounts">—</b><span>accounts</span></div>
   <div class="counter"><b id="c-up">—</b><span>authorities online</span></div>
 </div>
 
 <h2>The committee</h2>
 <div class="nodes" id="nodes"></div>
+
+<p style="color:var(--muted); font-size:12.5px; margin:-8px 0 18px">
+  An authority that fell behind before 2 August 2026 cannot be repaired: the certificates it missed
+  were never written to disk by any authority, so a "behind by N" figure above will not fall.
+  Certificate retention is now durable, so gaps opening from here on do heal. See THREAT_MODEL.md.
+</p>
 
 <h2>Live payments</h2>
 <div class="feed" id="feed"><div class="empty">waiting for the next payment…</div></div>

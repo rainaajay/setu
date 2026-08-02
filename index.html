@@ -429,9 +429,12 @@
       $('w-bal').textContent = 'checking…';
       const views = (await accountViews()).filter(Boolean);
       if (!views.length) { $('w-bal').textContent = 'network unreachable — try again'; return; }
-      const counts = {};
-      for (const v of views) counts[v.balance] = (counts[v.balance] ?? 0) + 1;
-      const majority = Object.entries(counts).sort((a,b) => b[1]-a[1])[0];
+      // Use a Map and break ties toward the HIGHER balance. With a plain object, V8 enumerates
+      // integer-like keys in ascending order and sort is stable, so a 2-2 split rendered 0 —
+      // showing "0" immediately after telling the visitor 500 Credits had been minted.
+      const counts = new Map();
+      for (const v of views) counts.set(v.balance, (counts.get(v.balance) ?? 0) + 1);
+      const majority = [...counts].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0];
       const agreeing = Number(majority[1]);
       // A balance is only meaningful if a QUORUM agrees on it. Previously one slow-to-answer round
       // could print a single authority's number as clean fact — and the authorities genuinely
@@ -445,12 +448,21 @@
       log('requesting test Credits from the faucet…');
       // Timeout each request, and report honestly how many authorities actually accepted —
       // never claim credits were minted if the network was unreachable.
-      const oks = await Promise.all(AUTH.map((url) => fetch(url + '/admin/fund', {
+      // Keep the server's answer. Collapsing every response to r.ok made a REFUSAL (rate limit, cap)
+      // indistinguishable from an outage, so a rate-limited visitor was told to wait and try again —
+      // the one thing that cannot help. And "the authorities may be waking up" was false: every
+      // deploy/auth-*/fly.toml sets min_machines_running = 1 with auto_stop_machines = false.
+      const results = await Promise.all(AUTH.map((url) => fetch(url + '/admin/fund', {
         method: 'POST', body: JSON.stringify({ address, amount: 500 }), signal: AbortSignal.timeout(9000),
-      }).then((r) => r.ok).catch(() => false)));
-      const ok = oks.filter(Boolean).length;
+      }).then(async (r) => ({ ok: r.ok, status: r.status, error: (await r.json().catch(() => ({}))).error }))
+        .catch(() => ({ ok: false, status: 0, error: undefined }))));
+      const ok = results.filter((r) => r.ok).length;
       if (ok === 0) {
-        log('the network is unreachable right now — the authorities may be waking up. Wait a few seconds and press faucet again.');
+        const limited = results.find((r) => r.status === 429);
+        const refused = results.find((r) => r.status === 400 && r.error);
+        if (limited) log("the faucet's hourly limit for your network has been used up (60 calls per IP per hour). It resets on the hour — reloading will not help.");
+        else if (refused) log('the faucet refused: ' + refused.error);
+        else log('could not reach any authority just now. Check your connection and press faucet again.');
         return;
       }
       await refreshBalance();
