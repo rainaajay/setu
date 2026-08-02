@@ -93,8 +93,25 @@ absolute false); stand-in disclosure restored with the VERIFIED count — **seve
 (counted in the repos, not 15 and not 1); "settled this run" → "settled to date"; a verdict with no numeric
 scores renders "could not verify" instead of a false "rejected 0/100 unpaid"; economy.ts loadState drops
 pre-verification showcase entries; pitch.html latency reconciled to ~180 ms warm (p50) in all three places.
-**Still open from Cycle 6:** explorer.html false-offline (6s→10s) + false-green dot, index.html count
-reconcile + viz salience, §18 partition test + THREAT_MODEL.md, claims-consistency guard.
+**Cycle 6 is now FULLY implemented** (commit f9c233e completed items 3–5):
+- **Item 5 explorer.html** — timeouts 6s→10s (a measured 6.71s cold authority was rendering a FALSE
+  "offline" + under-reported online count); the hardcoded green dot now derives from real state
+  (unreachable / below-quorum / live / quiet >15s / stale >2m).
+- **Item 3 landing** — count reconciled to the verified **seven** wired apps on both index and economy
+  (index had said 1, economy 15); "YOUR APPS"→"THE BUILDER'S APPS"; viz salience raised for real
+  payments (r5→7, opacity .35→.6, 1.6s) and the ~60-trade opening flood removed. Rate never inflated.
+- **Item 4 §18** — the largest untested protocol surface is now TESTED: a partitioned authority refuses
+  a later cert with an explicit sequence gap, **cannot be double-spent against** (healthy majority holds
+  the lock), and **heals on ordered replay** with supply conserved. **THREAT_MODEL.md** written: trust
+  model stated plainly, each defended property mapped to a named test, honest gap list (no anti-entropy,
+  no lock cancellation, clock-skew, keys without HSM/rotation, public faucet, DoS). Register re-synced
+  (26 tests; threat model planned→implemented-unreviewed). **npm test 26/26.**
+
+**Cycle 7 queue:** claims-consistency guard (scripts/check-claims.mjs — would have caught the pitch
+latency drift automatically); widen the 2.5s poll loops to ~4.5s + raise loadMarket timeout 9s→12s;
+move the per-settlement whole-file .bak copy off the hot path; delegation-expiry SKEW_MS tolerance;
+rate-limit consumed before the idempotent-retry check (honest retries get throttled); the open
+supplier/verifier on-ramp for outsiders; football-league council schema.
 
 **CONTINUOUS CYCLES:** the owner asked for cycles to run continuously. A recurring job now fires a full
 cycle (8 seats + Sutradhar) **every 2 hours at :23**, implements the EXECUTE items, tests, deploys and
