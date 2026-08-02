@@ -101,6 +101,22 @@ const server = createServer(async (req, res) => {
       };
     } else if (req.method === 'GET' && url.pathname === '/stats') {
       payload = authority.stats();
+    } else if (req.method === 'GET' && url.pathname === '/digest') {
+      // Anti-entropy: what sequence this authority has reached per sender, so a peer can see what it
+      // is missing. Read-only and public — it exposes nothing a peer cannot already read per-account.
+      payload = { name, now: Date.now(), senders: authority.digest() };
+    } else if (req.method === 'GET' && url.pathname === '/certs') {
+      // Serve the certificates a lagging peer needs. Certificates are self-authenticating, so this
+      // grants no trust: the peer re-verifies every one through its own handleCertificate.
+      const sender = url.searchParams.get('sender') ?? '';
+      const from = Number(url.searchParams.get('from') ?? 0);
+      const to = Number(url.searchParams.get('to') ?? 0);
+      if (!sender || !Number.isInteger(from) || !Number.isInteger(to) || to <= from || to - from > 200) {
+        res.writeHead(400, { 'content-type': 'application/json', ...CORS });
+        res.end(JSON.stringify({ error: 'sender, from, to required; range <= 200' }));
+        return;
+      }
+      payload = { certificates: authority.certsFor(sender, from, to) };
     } else if (req.method === 'GET' && url.pathname === '/recent') {
       payload = authority.recentActivity();
     } else if (req.method === 'GET' && url.pathname === '/balance') {
@@ -139,6 +155,55 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify({ ok: false, error: (e as Error).message }));
   }
 });
+
+// --- Anti-entropy -------------------------------------------------------------------------------
+// Settlement application is client-driven, so an authority that misses a certificate stays behind:
+// a missed OUTGOING spend makes it refuse later certificates ("sequence gap"), and a missed INCOMING
+// credit diverges SILENTLY — a permanently wrong balance with no error. Client-side retries stop new
+// divergence but cannot repair history. This loop repairs it: ask a peer what sequence each sender
+// has reached, and pull the certificates we are missing.
+//
+// It grants the peer NO trust: every certificate fetched is applied through our own handle(), which
+// re-verifies the sender signature, the quorum of authority signatures, the amount and the sequence.
+// A malicious peer can therefore only ever hand us certificates we would have accepted anyway.
+const SYNC_INTERVAL_MS = Number(process.env.SETU_SYNC_INTERVAL_MS ?? 30_000);
+const SYNC_SENDERS_PER_ROUND = Number(process.env.SETU_SYNC_SENDERS ?? 25); // bounded work per round
+const peers = committee.members.filter((m) => m.name !== name && m.url);
+
+async function syncOnce(): Promise<void> {
+  if (!peers.length) return;
+  const peer = peers[Math.floor(Math.random() * peers.length)];
+  let senders: { sender: string; nextSeq: number }[];
+  try {
+    const r = await fetch(`${peer.url}/digest`, { signal: AbortSignal.timeout(10_000) });
+    senders = ((await r.json()) as { senders?: { sender: string; nextSeq: number }[] }).senders ?? [];
+  } catch { return; }
+
+  // Only the senders where the peer is AHEAD of us — those are the certificates we missed.
+  const behind = senders
+    .filter((x) => authority.accountInfo(x.sender).nextSeq < x.nextSeq)
+    .slice(0, SYNC_SENDERS_PER_ROUND);
+  let applied = 0;
+  for (const { sender, nextSeq } of behind) {
+    const from = authority.accountInfo(sender).nextSeq;
+    const to = Math.min(nextSeq, from + 200);
+    if (to <= from) continue;
+    try {
+      const r = await fetch(`${peer.url}/certs?sender=${encodeURIComponent(sender)}&from=${from}&to=${to}`, { signal: AbortSignal.timeout(10_000) });
+      const { certificates } = (await r.json()) as { certificates?: unknown[] };
+      for (const certificate of certificates ?? []) {
+        const res = (await authority.handle({ type: 'certificate', certificate } as never)) as { ok: boolean };
+        if (!res?.ok) break; // ordered replay: stop at the first one we cannot apply
+        applied += 1;
+      }
+    } catch { /* try again next round */ }
+  }
+  if (applied) console.log(`[sync] applied ${applied} certificate(s) from ${peer.name}`);
+}
+
+if (process.env.SETU_SYNC !== 'off') {
+  setInterval(() => { void syncOnce().catch(() => {}); }, SYNC_INTERVAL_MS).unref();
+}
 
 server.listen(port, host, () => {
   console.log(`${name} listening on ${host}:${port}${stateFile ? ` (state: ${stateFile})` : ' (in-memory)'}`);

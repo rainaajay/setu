@@ -33,6 +33,8 @@ The resident economy (`packages/setu-economy`) is a demonstration and is treated
 | Crash mid-write | Atomic temp+rename with one `.bak` generation; resilient load; refuses to start if all copies are unreadable | `persistence.test.ts` |
 | Partition / lagging authority (OUTGOING spends) | Explicit sequence gap; safety holds; heals on ordered replay | `protocol.test.ts` (§18) |
 | Failed settle leg | Client retries the stragglers in the background so the ledger converges | `protocol.test.ts` (retry heals a lagging authority) |
+| Address bricked by partial delivery | Wallet caches certificates and replays them to laggards before signing | `protocol.test.ts` (partial delivery cannot brick an address) |
+| Diverged authority (incl. silent incoming credits) | Anti-entropy: digest comparison + certificate pull, re-verified locally | `protocol.test.ts` (anti-entropy repairs a diverged authority) |
 
 ## 3. Known gaps — the honest list
 
@@ -47,10 +49,23 @@ The resident economy (`packages/setu-economy`) is a demonstration and is treated
      on all four authorities — identical — while its balance read **2,325 on auth-1 and 4,999 on the
      other three**. A client that happens to query the lagging authority gets a wrong balance, and
      that authority will refuse otherwise-valid spends.
-   Mitigation shipped 2026-08-02: the client now retries failed settle legs in the background, which
-   stops *new* divergence. It does **not** repair history — that needs real anti-entropy, which does
-   not exist. *Safety is intact* (quorum overlap still prevents double-spend); this is a
-   **consistency** gap, and it is the most significant open defect in the system.
+   **Mitigations shipped 2026-08-02**, in order of strength:
+   - *Client retry*: failed settle legs are retried in the background, so a transient failure no
+     longer strands an authority.
+   - *Client-side catch-up*: wallets cache the certificates they form and replay them to laggards
+     before signing the next order — this is what stops an address being bricked.
+   - *Authority anti-entropy* (`/digest`, `/certs`, and a 30 s sync loop): an authority compares
+     sequence digests with a random peer and pulls the certificates it missed, applying each through
+     its **own** `handle()` — so a peer is granted no trust and can only supply certificates that
+     would have been accepted anyway. Proven by test, including the silent incoming-credit case.
+   **What it does NOT fix, honestly:** the certificate log is in memory and bounded, so it only
+   serves certificates applied since that authority last started. The divergence that existed
+   *before* retention began (measured live: one sender at seq 1,992 on auth-1 vs 3,295 on auth-2)
+   **cannot be repaired** — those certificates are gone. Anti-entropy prevents and repairs divergence
+   from now on; it cannot rewrite history. A simultaneous restart of all four (i.e. every deploy)
+   empties every log, so only post-deploy history is recoverable.
+   *Safety is intact throughout* (quorum overlap still prevents double-spend); this remains a
+   **consistency** gap and the most significant open defect.
 2. **No lock cancellation or timeout.** A pending order that gets a signature but never settles
    freezes that (account, seq) — and its reserved funds — indefinitely. There is no protocol-level
    cancellation. The resident economy papers over this by rotating a stuck client's wallet; the

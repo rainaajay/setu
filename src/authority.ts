@@ -72,6 +72,11 @@ export class Authority {
   private settledCount = 0;
   private volume = 0;
   private recent: { from: string; to: string; amount: number; ref?: string; at: number }[] = [];
+  // Applied certificates, kept in memory so peers can catch each other up. Bounded; insertion-ordered
+  // so the oldest is evicted first. Not persisted: on restart this authority simply serves fewer
+  // certificates, and its own gaps are healed FROM peers instead.
+  private certs = new Map<string, Certificate>();
+  private static readonly CERT_LOG_MAX = Number(process.env.SETU_CERT_LOG_MAX ?? 20_000);
   private delegations = new Map<string, DelegationState>();
 
   // With stateFile set, the authority survives restarts. Pending locks are persisted
@@ -189,6 +194,24 @@ export class Authority {
       volume: this.volume,
       now: Date.now(), // server clock, so a viewer can skew-correct "Xs ago" against their own clock
     };
+  }
+
+  /** Sequence reached per sender — what a peer compares against to find what it is missing. */
+  digest(): { sender: string; nextSeq: number }[] {
+    const out: { sender: string; nextSeq: number }[] = [];
+    for (const [sender, a] of this.accounts) if (a.nextSeq > 0) out.push({ sender, nextSeq: a.nextSeq });
+    return out;
+  }
+
+  /** Certificates this authority holds for a sender in [from, to). Used by a peer to catch up. */
+  certsFor(sender: string, from: number, to: number): Certificate[] {
+    const out: Certificate[] = [];
+    for (let seq = from; seq < to; seq++) {
+      const c = this.certs.get(`${sender}:${seq}`);
+      if (!c) break; // a gap we cannot serve; the peer will try another authority
+      out.push(c);
+    }
+    return out;
   }
 
   recentActivity(): typeof this.recent {
@@ -394,6 +417,14 @@ export class Authority {
     recipient.balance += order.amount;
     this.accounts.set(order.recipient, recipient);
     this.persist();
+
+    // Retain the applied certificate so a lagging PEER can fetch and replay it (anti-entropy).
+    // Keyed by sender:seq — the sender's sequence is what a behind authority is missing, and
+    // replaying it also restores the RECIPIENT's credit, which is the silent divergence case.
+    if (order.delegation === undefined) {
+      this.certs.set(`${order.sender}:${order.seq}`, certificate);
+      if (this.certs.size > Authority.CERT_LOG_MAX) this.certs.delete(this.certs.keys().next().value as string);
+    }
 
     this.settledCount += 1;
     this.volume += order.amount;

@@ -469,3 +469,49 @@ test('partial certificate delivery cannot brick an address — the client catche
     assert.equal(a.balanceOf(alice.publicKey), 470, `${a.name} agrees on the sender balance`);
   }
 });
+
+// ANTI-ENTROPY. Client-side retries stop NEW divergence but cannot repair history. This is the
+// mechanism that does: a lagging authority compares digests with a peer, pulls the certificates it
+// missed, and applies them through its OWN handle() — so the peer is granted no trust whatsoever.
+// Covers the silent case specifically: a missed INCOMING credit leaves no sequence gap on the
+// recipient, so nothing but reconciliation can detect or fix it.
+test('anti-entropy repairs a diverged authority, including silently-missed incoming credits', async () => {
+  const { auths } = committee();
+  const alice = generateKeyPair();
+  const bob = generateKeyPair().publicKey;
+  auths.forEach((a) => a.fund(alice.publicKey, 500));
+  const lagging = auths[0], healthy = auths.slice(1);
+
+  // Three payments certify with a full quorum but reach only the healthy three.
+  for (let seq = 0; seq < 3; seq++) {
+    const signed = signOrder(alice, { sender: alice.publicKey, recipient: bob, amount: 20, seq });
+    const sigs = await submit(auths, signed);
+    assert.ok(sigs.length >= QUORUM);
+    await apply(healthy, makeCert(signed, sigs));
+  }
+
+  // The laggard is now wrong on BOTH sides, and bob's balance is wrong SILENTLY (no gap for him).
+  assert.equal(lagging.balanceOf(bob), 0, 'missed incoming credit: silently wrong');
+  assert.equal(healthy[0].balanceOf(bob), 60);
+
+  // Reconcile: the digest tells it what it is missing; certsFor serves the certificates.
+  const peerDigest = healthy[0].digest();
+  let applied = 0;
+  for (const { sender, nextSeq } of peerDigest) {
+    const from = lagging.accountInfo(sender).nextSeq;
+    if (from >= nextSeq) continue;
+    for (const certificate of healthy[0].certsFor(sender, from, nextSeq)) {
+      const r = await lagging.handle({ type: 'certificate', certificate }) as any;
+      assert.equal(r.ok, true, 'the laggard applies it through its own verification');
+      applied++;
+    }
+  }
+  assert.equal(applied, 3, 'all three missed certificates were recovered');
+
+  // Fully converged.
+  for (const a of auths) {
+    assert.equal(a.balanceOf(bob), 60, `${a.name} agrees on the recipient`);
+    assert.equal(a.balanceOf(alice.publicKey), 440, `${a.name} agrees on the sender`);
+  }
+  assert.deepEqual(lagging.digest().find((d) => d.sender === alice.publicKey), { sender: alice.publicKey, nextSeq: 3 });
+});
