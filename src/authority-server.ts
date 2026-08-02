@@ -63,6 +63,21 @@ const CORS = {
   'access-control-allow-headers': 'content-type',
 };
 
+// Per-IP hourly cap on faucet calls. The faucet stays public (test units; the browser wallet and the
+// arena need it) but cannot be used to bloat state with unbounded accounts/balances.
+const FAUCET_PER_IP_HOUR = Number(process.env.SETU_FAUCET_PER_IP_HOUR ?? 60);
+const FAUCET_MAX = Number(process.env.SETU_FAUCET_MAX ?? 1000);              // max per faucet call
+const FAUCET_MAX_BALANCE = Number(process.env.SETU_FAUCET_MAX_BALANCE ?? 100_000); // max faucet-topped balance
+let faucetHour = '';
+const faucetHits = new Map<string, number>();
+function faucetAllowed(ip: string): boolean {
+  const h = new Date().toISOString().slice(0, 13);
+  if (h !== faucetHour) { faucetHour = h; faucetHits.clear(); }
+  const n = (faucetHits.get(ip) ?? 0) + 1;
+  faucetHits.set(ip, n);
+  return n <= FAUCET_PER_IP_HOUR;
+}
+
 const port = Number(process.env.PORT ?? me.port);
 const host = process.env.HOST ?? '127.0.0.1';
 
@@ -91,9 +106,26 @@ const server = createServer(async (req, res) => {
     } else if (req.method === 'GET' && url.pathname === '/balance') {
       payload = { balance: authority.balanceOf(url.searchParams.get('address') ?? '') };
     } else if (req.method === 'POST' && url.pathname === '/admin/fund') {
+      // Public testnet faucet: intentionally open (Credits are test units; the browser wallet and arena
+      // depend on it), but bounded — per-IP hourly rate limit here, amount/balance caps in fund().
+      const ip = String(req.headers['fly-client-ip'] || String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown');
+      if (!faucetAllowed(ip)) {
+        res.writeHead(429, { 'content-type': 'application/json', ...CORS });
+        res.end(JSON.stringify({ ok: false, error: 'faucet rate limit reached; try again later' }));
+        return;
+      }
       const { address, amount } = JSON.parse(await readBody(req));
-      authority.fund(address, amount);
-      payload = { ok: true };
+      if (!Number.isInteger(amount) || amount <= 0 || amount > FAUCET_MAX) {
+        res.writeHead(400, { 'content-type': 'application/json', ...CORS });
+        res.end(JSON.stringify({ ok: false, error: `amount must be a positive integer <= ${FAUCET_MAX}` }));
+        return;
+      }
+      if (authority.balanceOf(address) + amount > FAUCET_MAX_BALANCE) {
+        res.writeHead(400, { 'content-type': 'application/json', ...CORS });
+        res.end(JSON.stringify({ ok: false, error: 'faucet balance cap reached for this address' }));
+        return;
+      }
+      payload = authority.fund(address, amount);
     } else if (req.method === 'POST' && url.pathname === '/') {
       payload = await authority.handle(JSON.parse(await readBody(req)));
     } else {

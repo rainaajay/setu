@@ -276,3 +276,24 @@ test('authority state (balances, sequence, delegation spend) survives a restart 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// The public faucet is intentionally open (Credits are closed-loop TEST units and the browser wallet
+// depends on it), but it must never be able to corrupt state. A negative amount would DRAIN an account
+// and break value conservation; a non-integer would NaN a balance. Both are rejected at the library
+// level, so no caller — HTTP or in-process — can reach state with them.
+test('faucet rejects negative, zero, and non-integer amounts (cannot corrupt balances)', () => {
+  const a = new Authority('auth-1');
+  const alice = generateKeyPair().publicKey;
+
+  assert.equal(a.fund(alice, 100).ok, true);
+  assert.equal(a.balanceOf(alice), 100);
+
+  for (const bad of [-50, 0, 1.5, NaN, Infinity, -Infinity]) {
+    const r = a.fund(alice, bad as number);
+    assert.equal(r.ok, false, `amount ${bad} must be rejected`);
+    assert.equal(a.balanceOf(alice), 100, `balance must be untouched after amount ${bad}`);
+  }
+  // a malformed address is refused too, and creates no account
+  assert.equal(a.fund('short', 10).ok, false);
+  assert.equal(a.balanceOf('short'), 0);
+});

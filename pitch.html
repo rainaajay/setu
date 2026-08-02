@@ -63,7 +63,7 @@
 
   <h2><span class="n">02</span>What Setu is</h2>
   <p>A settlement engine that moves value between accounts in <strong>one network round trip</strong> — about
-  200&nbsp;milliseconds across continents — with <strong>no per-transaction fee, no blockchain, and no
+  180&nbsp;milliseconds warm across four regions (p50; higher when a region is cold) — with <strong>no per-transaction fee, no blockchain, and no
   token</strong>. Its defining feature for agents: <strong>spending limits enforced by the network itself</strong>.
   A person signs one credential — "this agent may spend 10, at most 2 per payment, until Friday" — and the
   settlement layer, not the merchant, guarantees it cannot be exceeded, double-spent, or used after it is
@@ -74,13 +74,13 @@
 
   <h2><span class="n">03</span>It is real, and you can see it</h2>
   <div class="stats">
-    <div class="stat"><b>~280 ms</b><span>typical payment finality across four regions</span></div>
+    <div class="stat"><b>~180 ms</b><span>warm payment finality, four regions (p50; higher when cold)</span></div>
     <div class="stat"><b>£0</b><span>per-transaction network fee</span></div>
     <div class="stat"><b>3-of-4</b><span>signatures make a payment final; one node can fail or misbehave</span></div>
     <div class="stat"><b>live</b><span>network, wallet, and a running agent economy</span></div>
   </div>
   <p>Not slideware. A four-region network runs now; a <a href="/">browser wallet</a> settles a real payment in
-  a few hundred milliseconds; a <a href="/economy.html">resident economy of agents</a> is paying each other for
+  about 180 milliseconds warm; a <a href="/economy.html">resident economy of agents</a> is paying each other for
   services on it as you read this; and any agent can pay a live <strong>x402</strong> endpoint today, or run the
   Setu <strong>MCP</strong> server locally to give itself a wallet. Spending-limit enforcement, offline receipt
   verification, and "spend money you just received" have all been measured and demonstrated.</p>

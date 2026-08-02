@@ -133,7 +133,20 @@ export class Authority {
   }
 
   // Genesis only — production issuance is a Plane-2 governance question.
-  fund(address: string, amount: number): void {
+  // Testnet genesis issuance (the public faucet). It is intentionally open — Credits are closed-loop
+  // TEST units and the public wallet/arena depend on it — but it must never be able to corrupt state:
+  // only a positive integer within a bounded per-call and per-account cap is accepted. A negative or
+  // non-integer amount would break value conservation (draining an account or NaN-ing a balance), so
+  // those are rejected outright rather than trusted.
+  // Integrity guard applies to EVERY caller (in-process genesis and the public HTTP faucet alike):
+  // a negative amount would drain an account and break value conservation; a non-integer would NaN a
+  // balance. Neither may ever reach state. The public faucet's *size* cap is enforced at the HTTP
+  // layer (authority-server.ts) so in-process genesis can still mint a large fixed supply.
+  fund(address: string, amount: number): { ok: true } | { ok: false; error: string } {
+    if (typeof address !== 'string' || address.length < 32 || address.length > 200)
+      return { ok: false, error: 'bad address' };
+    if (!Number.isInteger(amount) || amount <= 0)
+      return { ok: false, error: 'amount must be a positive integer' };
     const existing = this.accounts.get(address);
     this.accounts.set(address, {
       balance: (existing?.balance ?? 0) + amount,
@@ -141,6 +154,7 @@ export class Authority {
       pending: existing?.pending,
     });
     this.persist();
+    return { ok: true };
   }
 
   balanceOf(address: string): number {

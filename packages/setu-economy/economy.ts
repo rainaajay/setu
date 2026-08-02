@@ -430,7 +430,9 @@ async function loadState(): Promise<boolean> {
     brainHour = s.brainHour || ''; brainTasksThisHour = s.brainTasksThisHour || 0; deferredThisHour = s.deferredThisHour || 0;
     internalTasksThisHour = s.internalTasksThisHour || 0; cogThisHour = s.cogThisHour || 0;
     if (Array.isArray(s.tasks)) tasks.push(...s.tasks);
-    if (Array.isArray(s.showcase)) showcase.push(...s.showcase);
+    // Keep only current-mechanism verified jobs (numeric per-criterion scores) in the showcase; drop
+    // pre-verification / old-shape entries so the "verified jobs" section never shows stale non-verified work.
+    if (Array.isArray(s.showcase)) showcase.push(...s.showcase.filter((t: Task) => t.verdict && Array.isArray(t.verdict.scores) && t.verdict.scores.length > 0));
     if (Array.isArray(s.thoughts)) thoughts.push(...s.thoughts);
     if (Array.isArray(s.trades)) trades.push(...s.trades);
     process.stderr.write(`[economy] restored ${agents.length} agents + ${clients.length} clients from ${STATE_FILE} (tx ${totalTx}, spent $${spentUsd.toFixed(2)})\n`);

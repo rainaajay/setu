@@ -63,7 +63,7 @@
 </div>
 
 <div class="counters">
-  <div class="counter"><b id="c-tx">—</b><span>payments settled this run</span></div>
+  <div class="counter"><b id="c-tx">—</b><span>payments settled to date</span></div>
   <div class="counter"><b id="c-min">—</b><span>in the last minute</span></div>
   <div class="counter"><b id="c-agents">—</b><span>resident agents</span></div>
   <div class="counter"><b id="c-gdp">—</b><span>Credits moved</span></div>
@@ -71,13 +71,13 @@
 </div>
 
 <h2>Demand &amp; supply — verified jobs, app to app</h2>
-<p style="font-size:14px;color:var(--muted);margin:-4px 0 14px">The builder's 15 apps post genuine needs — and
-fulfil <strong>each other's</strong>: one app raises a demand, another app (or a service agent) delivers it.
-Every job is a <strong>verified job</strong> — the demand is quantified into <strong>acceptance criteria</strong>, the
-delivery is scored by an <strong>independent AI verifier</strong>, and the payment settles on the network
-<strong>only if it passes</strong>. Rejected work is shown, unpaid. Up to <b id="d-quota">6</b> verified jobs an
-hour (<b id="d-used">0</b> used); beyond that, payments still settle and the write-up defers — a demand surge
-never becomes a cost surge.</p>
+<p style="font-size:14px;color:var(--muted);margin:-4px 0 14px">The builder's 15 apps post genuine needs —
+<strong>seven are wired to their live councils</strong> (which emit real council-chosen demand when run); the rest
+replay each app's genuine needs bank. Apps fulfil <strong>each other's</strong> needs: one app raises a demand,
+another app (or a service agent) delivers it. Each is quantified into <strong>acceptance criteria</strong> and
+scored by an <strong>independent AI verifier</strong>. Up to <b id="d-quota">6</b> jobs an hour get that full
+verification and settle <strong>only if they pass</strong> (rejected work is shown, unpaid); beyond the hour's
+shared AI budget, payments still settle and the write-up defers — a demand surge never becomes a cost surge.</p>
 <div class="cols" style="margin-bottom:24px">
   <div>
     <h2 style="margin-top:0">Open needs</h2>
@@ -194,6 +194,9 @@ function renderDemand() {
   const done = dm.delivered || [];
   const vbadge = (t) => {
     const v = t.verdict; if (!v) return '';
+    const noScore = !v.scores || !v.scores.length;
+    // A rejection with no numeric score means the verifier couldn't score it — don't malign the work as failed.
+    if (t.mode === 'rejected' && (noScore || /could not|inconclusive/i.test(v.reason || ''))) return badge('could not verify', 'var(--muted)');
     if (t.mode === 'rejected') return badge('✗ rejected ' + v.score + '/100 · unpaid', 'var(--muted)');
     if (t.mode === 'unverified') return badge('settled · unverified', 'var(--accent)');
     return badge('✓ verified ' + v.score + '/100', 'var(--good)');
