@@ -397,3 +397,33 @@ test('self-payments are never signed and never settle (they would inflate the pu
   assert.equal(after.volume, before.volume, 'volume counter must not move');
   assert.equal(auths[0].balanceOf(alice.publicKey), 100, 'balance unchanged');
 });
+
+// A settle leg that fails used to be dropped silently, leaving that authority permanently behind —
+// it then refuses every LATER certificate from the same sender with a sequence gap, because there is
+// no authority-to-authority anti-entropy. Measured live, one authority was missing 7 of 41 payments
+// this way. The client now retries the stragglers in the background, so the ledger converges.
+test('a settle leg that fails is retried until the lagging authority catches up', async () => {
+  const { InProcessNetwork } = await import('../src/network.ts');
+  const { Wallet } = await import('../src/client.ts');
+  const net = new InProcessNetwork(1, 2);
+  const auths = [new Authority('auth-1'), new Authority('auth-2'), new Authority('auth-3'), new Authority('auth-4')];
+  const keys = auths.map((a) => a.keys.publicKey);
+  auths.forEach((a) => a.setCommittee(keys, QUORUM));
+  auths.forEach((a) => net.register(a.name, (m: any) => a.handle(m)));
+
+  const alice = new Wallet('alice', net, auths.map((a) => a.name), QUORUM);
+  const bob = generateKeyPair().publicKey;
+  auths.forEach((a) => a.fund(alice.address, 500));
+
+  net.setOnline('auth-4', false);              // auth-4 misses the whole payment
+  const res = await alice.transfer(bob, 100);
+  assert.ok(res.certificate, 'the payment is still final on a 3-of-4 quorum');
+  assert.equal(auths[3].balanceOf(bob), 0, 'the offline authority has not applied it yet');
+
+  net.setOnline('auth-4', true);               // it comes back
+  await new Promise((r) => setTimeout(r, 1200)); // first background retry is at 500ms
+
+  assert.equal(auths[3].balanceOf(bob), 100, 'the retry healed the lagging authority');
+  assert.equal(auths[3].balanceOf(alice.address), 400);
+  for (const a of auths) assert.equal(a.balanceOf(bob), 100, `${a.name} agrees`);
+});

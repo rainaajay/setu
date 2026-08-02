@@ -31,15 +31,26 @@ The resident economy (`packages/setu-economy`) is a demonstration and is treated
 | Over-spend by a delegated agent | Server-enforced allowance: per-payment cap, cumulative total, expiry, revocation, agent identity | `protocol.test.ts` |
 | Faucet corrupting state | `fund()` rejects non-integer / zero / negative amounts and malformed addresses; HTTP layer adds per-call, per-balance and per-IP caps | `protocol.test.ts` (2026-08-02) |
 | Crash mid-write | Atomic temp+rename with one `.bak` generation; resilient load; refuses to start if all copies are unreadable | `persistence.test.ts` |
-| Partition / lagging authority | Explicit sequence gap (no silent divergence); safety holds; heals on ordered replay | `protocol.test.ts` (§18) |
+| Partition / lagging authority (OUTGOING spends) | Explicit sequence gap; safety holds; heals on ordered replay | `protocol.test.ts` (§18) |
+| Failed settle leg | Client retries the stragglers in the background so the ledger converges | `protocol.test.ts` (retry heals a lagging authority) |
 
 ## 3. Known gaps — the honest list
 
-1. **No authority-to-authority anti-entropy.** Settlement application is entirely client-driven. An
-   authority that misses a certificate refuses all later ones for that sender (`sequence gap
-   (authority behind)`) until the missed certificates are replayed **in order**. Clients do not
-   generally retain them. *Safety is intact* (proven above); this is a **liveness/consistency** gap.
-   Live symptom: the four authorities' `settled` counters diverge.
+1. **No authority-to-authority anti-entropy — and missed INCOMING credits diverge silently.**
+   Settlement application is entirely client-driven. Two distinct failure modes:
+   - *Missed outgoing spend*: the authority refuses all later certificates for that sender
+     (`sequence gap (authority behind)`) until the missed ones are replayed **in order**. Loud, and
+     it stops there.
+   - *Missed incoming credit*: **silent and permanent.** `nextSeq` tracks the sender only, so an
+     authority that misses a payment where an account was the *recipient* shows a wrong balance
+     forever with no error and no gap. **Observed live 2026-08-02:** one account read `nextSeq 8097`
+     on all four authorities — identical — while its balance read **2,325 on auth-1 and 4,999 on the
+     other three**. A client that happens to query the lagging authority gets a wrong balance, and
+     that authority will refuse otherwise-valid spends.
+   Mitigation shipped 2026-08-02: the client now retries failed settle legs in the background, which
+   stops *new* divergence. It does **not** repair history — that needs real anti-entropy, which does
+   not exist. *Safety is intact* (quorum overlap still prevents double-spend); this is a
+   **consistency** gap, and it is the most significant open defect in the system.
 2. **No lock cancellation or timeout.** A pending order that gets a signature but never settles
    freezes that (account, seq) — and its reserved funds — indefinitely. There is no protocol-level
    cancellation. The resident economy papers over this by rotating a stuck client's wallet; the

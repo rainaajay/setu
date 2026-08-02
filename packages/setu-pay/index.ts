@@ -198,10 +198,32 @@ export class SetuWallet {
       authoritySignatures: sigs.slice(0, this.committee.quorum) as Certificate['authoritySignatures'],
     };
     const latencyMs = performance.now() - t0;
-    const settles = await this.each((url) =>
-      fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'certificate', certificate }) }).then((r) => r.json()),
-    );
-    return { certificate, latencyMs, settledOn: settles.filter((s) => (s as { ok: boolean } | null)?.ok).length };
+    // The payment is final once the certificate exists; applying it is separate. A settle leg that
+    // fails was previously never retried, leaving that authority permanently behind — it then refuses
+    // every later certificate from this sender with a sequence gap (there is no anti-entropy between
+    // authorities). Retry the stragglers so the ledger converges; never delay the caller for it.
+    const settleOne = async (url: string): Promise<boolean> => {
+      try {
+        const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'certificate', certificate }), signal: AbortSignal.timeout(12000) });
+        return !!(await r.json())?.ok;
+      } catch { return false; }
+    };
+    const urls = this.committee.authorities;
+    const ok = await Promise.all(urls.map(settleOne));
+    const settledOn = ok.filter(Boolean).length;
+    const missing = urls.filter((_, i) => !ok[i]);
+    if (missing.length) {
+      void (async () => {
+        let left = missing;
+        for (const delayMs of [500, 2000, 8000]) {
+          if (!left.length) return;
+          await new Promise((r) => setTimeout(r, delayMs));
+          const res = await Promise.all(left.map(settleOne));
+          left = left.filter((_, i) => !res[i]);
+        }
+      })().catch(() => {});
+    }
+    return { certificate, latencyMs, settledOn };
   }
 }
 

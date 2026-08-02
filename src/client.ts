@@ -91,12 +91,36 @@ export class Wallet {
     };
     const latencyMs = performance.now() - started; // certificate formed = final
 
-    const settles = await Promise.allSettled(
-      this.authorityIds.map((id) => this.network.send(id, { type: 'certificate', certificate })),
-    );
-    const settledOn = settles.filter(
-      (r) => r.status === 'fulfilled' && (r.value as SettleResponse).ok,
-    ).length;
+    // Applying the certificate is separate from finality: the payment is already final above. But a
+    // settle leg that fails here was previously never retried, so an authority that timed out stayed
+    // permanently behind — it then refuses every LATER certificate for that sender with a sequence
+    // gap (there is no authority-to-authority anti-entropy). Measured live, one authority was missing
+    // 7 of 41 payments this way. Retry the failed legs so the ledger converges.
+    const settledIds = new Set<string>();
+    const attempt = async (ids: string[]) => {
+      const res = await Promise.allSettled(
+        ids.map((id) => this.network.send(id, { type: 'certificate', certificate })),
+      );
+      res.forEach((r, i) => {
+        if (r.status === 'fulfilled' && (r.value as SettleResponse).ok) settledIds.add(ids[i]);
+      });
+    };
+    await attempt(this.authorityIds);
+    const settledOn = settledIds.size; // what actually applied by the time we return — reported honestly
+
+    // Keep retrying the stragglers in the background: finality does not depend on it, so the caller
+    // is never delayed, but the ledger heals instead of silently diverging.
+    const missing = this.authorityIds.filter((id) => !settledIds.has(id));
+    if (missing.length) {
+      void (async () => {
+        for (const delayMs of [500, 2000, 8000]) {
+          const still = this.authorityIds.filter((id) => !settledIds.has(id));
+          if (!still.length) return;
+          await new Promise((r) => setTimeout(r, delayMs));
+          await attempt(still).catch(() => {});
+        }
+      })().catch(() => {}); // never surface a background retry as an unhandled rejection
+    }
 
     return { certificate, latencyMs, settledOn };
   }
