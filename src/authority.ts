@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, renameSync, copyFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, renameSync, copyFileSync, appendFileSync } from 'node:fs';
 import { canonical, generateKeyPair, sign, verify, type KeyPair } from './crypto.ts';
 import type {
   Certificate,
@@ -76,6 +76,7 @@ export class Authority {
   // so the oldest is evicted first. Not persisted: on restart this authority simply serves fewer
   // certificates, and its own gaps are healed FROM peers instead.
   private certs = new Map<string, Certificate>();
+  private certFile?: string;
   private static readonly CERT_LOG_MAX = Number(process.env.SETU_CERT_LOG_MAX ?? 20_000);
   private delegations = new Map<string, DelegationState>();
 
@@ -87,11 +88,36 @@ export class Authority {
     this.keys = keys ?? generateKeyPair();
     this.stateFile = stateFile;
     if (stateFile) {
+      this.certFile = stateFile + '.certs.jsonl';
       const saved = this.loadState(stateFile);
       if (saved) {
         this.accounts = new Map(Object.entries(saved.accounts));
         if (saved.delegations) this.delegations = new Map(Object.entries(saved.delegations));
       }
+      this.loadCertLog();
+    }
+  }
+
+  // Recover the certificate log so this authority can still serve peers after a restart. Trimmed to
+  // the cap and rewritten once at boot, so the file cannot grow without bound. A corrupt line is
+  // skipped rather than fatal: the log is a best-effort convergence aid, never a source of truth —
+  // every certificate is re-verified before it is applied.
+  private loadCertLog(): void {
+    if (!this.certFile || !existsSync(this.certFile)) return;
+    try {
+      const lines = readFileSync(this.certFile, 'utf8').split('\n').filter(Boolean);
+      const kept = lines.slice(-Authority.CERT_LOG_MAX);
+      for (const line of kept) {
+        try {
+          const c = JSON.parse(line) as Certificate;
+          if (c?.order?.sender !== undefined && c.order.seq !== undefined)
+            this.certs.set(`${c.order.sender}:${c.order.seq}`, c);
+        } catch { /* skip a torn line */ }
+      }
+      if (kept.length < lines.length) writeFileSync(this.certFile, kept.join('\n') + '\n');
+      process.stderr.write(`[authority ${this.name}] recovered ${this.certs.size} certificates for peer catch-up\n`);
+    } catch (e) {
+      process.stderr.write(`[authority ${this.name}] cert log unreadable, continuing without it: ${(e as Error).message}\n`);
     }
   }
 
@@ -424,6 +450,14 @@ export class Authority {
     if (order.delegation === undefined) {
       this.certs.set(`${order.sender}:${order.seq}`, certificate);
       if (this.certs.size > Authority.CERT_LOG_MAX) this.certs.delete(this.certs.keys().next().value as string);
+      // Durably append so the log SURVIVES A RESTART. Without this, anti-entropy cannot converge:
+      // the condition that makes a peer need certificates (someone restarted) is the same condition
+      // that emptied the log holding them. An O(1) append — never the whole-file rewrite persist()
+      // does — so the settle path does not get slower.
+      if (this.certFile) {
+        try { appendFileSync(this.certFile, JSON.stringify(certificate) + '\n'); }
+        catch (e) { process.stderr.write(`[authority ${this.name}] cert log append failed: ${(e as Error).message}\n`); }
+      }
     }
 
     this.settledCount += 1;

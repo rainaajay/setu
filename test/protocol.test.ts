@@ -515,3 +515,50 @@ test('anti-entropy repairs a diverged authority, including silently-missed incom
   }
   assert.deepEqual(lagging.digest().find((d) => d.sender === alice.publicKey), { sender: alice.publicKey, nextSeq: 3 });
 });
+
+// The shipped anti-entropy test passed only because its serving peer never restarted. That is
+// exactly the case that matters: the condition making a peer NEED certificates (someone restarted)
+// is the same condition that emptied the in-memory log holding them. The certificate log is now
+// durable, so a restarted peer can still serve history.
+test('anti-entropy still works after the SERVING peer restarts', async () => {
+  const dir = join(tmpdir(), `setu-certlog-${Date.now()}`);
+  mkdirSync(dir, { recursive: true });
+  const peerFile = join(dir, 'peer.json');
+  try {
+    let peer = new Authority('peer', undefined, peerFile);
+    const lagging = new Authority('lagging');
+    const others = [new Authority('o1'), new Authority('o2')];
+    const all = [peer, lagging, ...others];
+    const keys = all.map((a) => a.keys.publicKey);
+    all.forEach((a) => a.setCommittee(keys, QUORUM));
+
+    const alice = generateKeyPair();
+    const bob = generateKeyPair().publicKey;
+    all.forEach((a) => a.fund(alice.publicKey, 500));
+
+    // Two payments certify; everyone applies them EXCEPT the laggard.
+    for (let seq = 0; seq < 2; seq++) {
+      const signed = signOrder(alice, { sender: alice.publicKey, recipient: bob, amount: 25, seq });
+      const sigs = await submit(all, signed);
+      assert.ok(sigs.length >= QUORUM);
+      await apply([peer, ...others], makeCert(signed, sigs));
+    }
+    assert.equal(lagging.balanceOf(bob), 0);
+
+    // The serving peer RESTARTS — this is what previously wiped its certificate log.
+    peer = new Authority('peer', peer.keys, peerFile);
+    peer.setCommittee(keys, QUORUM);
+
+    const served = peer.certsFor(alice.publicKey, 0, 2);
+    assert.equal(served.length, 2, 'a restarted peer must still serve the certificates it applied');
+
+    for (const certificate of served) {
+      const r = await lagging.handle({ type: 'certificate', certificate }) as any;
+      assert.equal(r.ok, true);
+    }
+    assert.equal(lagging.balanceOf(bob), 50, 'the laggard converged from a restarted peer');
+    assert.equal(lagging.balanceOf(alice.publicKey), 450);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

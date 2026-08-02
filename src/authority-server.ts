@@ -188,15 +188,22 @@ async function syncOnce(): Promise<void> {
     const from = authority.accountInfo(sender).nextSeq;
     const to = Math.min(nextSeq, from + 200);
     if (to <= from) continue;
-    try {
-      const r = await fetch(`${peer.url}/certs?sender=${encodeURIComponent(sender)}&from=${from}&to=${to}`, { signal: AbortSignal.timeout(10_000) });
-      const { certificates } = (await r.json()) as { certificates?: unknown[] };
-      for (const certificate of certificates ?? []) {
-        const res = (await authority.handle({ type: 'certificate', certificate } as never)) as { ok: boolean };
-        if (!res?.ok) break; // ordered replay: stop at the first one we cannot apply
-        applied += 1;
-      }
-    } catch { /* try again next round */ }
+    // Ask EVERY peer, not just the one whose digest flagged the gap: a peer that restarted holds no
+    // certificates older than its own boot, and giving up on it would end the round for this sender.
+    for (const src of [peer, ...peers.filter((p) => p.name !== peer.name)]) {
+      try {
+        const r = await fetch(`${src.url}/certs?sender=${encodeURIComponent(sender)}&from=${from}&to=${to}`, { signal: AbortSignal.timeout(10_000) });
+        const { certificates } = (await r.json()) as { certificates?: unknown[] };
+        if (!certificates?.length) continue; // this peer cannot serve the range; try the next
+        let progressed = false;
+        for (const certificate of certificates) {
+          const res = (await authority.handle({ type: 'certificate', certificate } as never)) as { ok: boolean };
+          if (!res?.ok) break; // ordered replay: stop at the first one we cannot apply
+          applied += 1; progressed = true;
+        }
+        if (progressed) break; // moved forward; the next round continues from the new sequence
+      } catch { /* try the next peer */ }
+    }
   }
   if (applied) console.log(`[sync] applied ${applied} certificate(s) from ${peer.name}`);
 }

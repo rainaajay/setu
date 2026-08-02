@@ -58,12 +58,18 @@ The resident economy (`packages/setu-economy`) is a demonstration and is treated
      sequence digests with a random peer and pulls the certificates it missed, applying each through
      its **own** `handle()` — so a peer is granted no trust and can only supply certificates that
      would have been accepted anyway. Proven by test, including the silent incoming-credit case.
-   **What it does NOT fix, honestly:** the certificate log is in memory and bounded, so it only
-   serves certificates applied since that authority last started. The divergence that existed
-   *before* retention began (measured live: one sender at seq 1,992 on auth-1 vs 3,295 on auth-2)
-   **cannot be repaired** — those certificates are gone. Anti-entropy prevents and repairs divergence
-   from now on; it cannot rewrite history. A simultaneous restart of all four (i.e. every deploy)
-   empties every log, so only post-deploy history is recoverable.
+   The certificate log is **durable** (appended per settlement to `<state>.certs.jsonl`, recovered and
+   trimmed at boot), so a restarted peer can still serve history — without that, the very condition
+   that makes a peer need certificates (a restart) was the condition that emptied the log holding
+   them, and reconciliation could never converge. Regression test: *anti-entropy still works after
+   the SERVING peer restarts* (it fails if the durable log is disabled).
+   **What it does NOT fix, honestly:** certificates settled *before* retention began were never
+   written down by anyone, so those gaps are **permanently unrepairable by any code**. Measured live
+   2026-08-02 after the fix: 8 senders on which auth-1 is behind, and all three peers serve 0 of the
+   missing certificates. The live testbed therefore carries a **legacy divergence of ~14,600
+   sequence numbers that will never close**. The only ways out are to disclose it or to reset the
+   testbed state — an owner decision, not a code change. Anti-entropy prevents and repairs divergence
+   from this point forward; it cannot rewrite history.
    *Safety is intact throughout* (quorum overlap still prevents double-spend); this remains a
    **consistency** gap and the most significant open defect.
 2. **No lock cancellation or timeout.** A pending order that gets a signature but never settles
