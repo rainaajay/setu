@@ -432,7 +432,13 @@
       const counts = {};
       for (const v of views) counts[v.balance] = (counts[v.balance] ?? 0) + 1;
       const majority = Object.entries(counts).sort((a,b) => b[1]-a[1])[0];
-      $('w-bal').textContent = majority[0] + (Number(majority[1]) < views.length ? ' (authorities syncing)' : '');
+      const agreeing = Number(majority[1]);
+      // A balance is only meaningful if a QUORUM agrees on it. Previously one slow-to-answer round
+      // could print a single authority's number as clean fact — and the authorities genuinely
+      // disagree when one is behind, so that number could simply be wrong.
+      $('w-bal').textContent = agreeing >= QUORUM
+        ? majority[0] + (agreeing < views.length ? ` (${agreeing}/4 agree)` : '')
+        : `${majority[0]} — unconfirmed, only ${agreeing} of 4 agree`;
     }
 
     async function faucet() {
@@ -450,7 +456,7 @@
       await refreshBalance();
       log(ok === AUTH.length
         ? '500 test Credits minted on all four authorities.'
-        : `500 test Credits minted on ${ok}/4 authorities (the rest are unreachable and will catch up).`);
+        : `500 test Credits minted on ${ok}/4 authorities — the others did not answer. Faucet credits do not propagate on their own (only settled payments do), so press faucet again to top them up. At least three authorities must hold your balance before you can spend.`);
     }
 
     // Sign an order, collect a quorum certificate, and settle it — the real protocol path,

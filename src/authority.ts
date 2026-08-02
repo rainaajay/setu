@@ -212,15 +212,25 @@ export class Authority {
     return { balance: a?.balance ?? 0, nextSeq: a?.nextSeq ?? 0 };
   }
 
-  stats(): { name: string; accounts: number; settled: number; volume: number; now: number } {
+  stats(): { name: string; accounts: number; settled: number; volume: number; now: number; booted: number; sumSeq: number; certsHeld: number } {
+    // sumSeq is the honest completeness measure. `settled` is a per-process tally that resets on
+    // restart, so it says how BUSY this authority has been, not how much of the ledger it holds —
+    // comparing authorities on it is misleading. sumSeq is derived from persisted state, so a
+    // viewer can see at a glance which authority is actually behind.
+    let sumSeq = 0;
+    for (const a of this.accounts.values()) sumSeq += a.nextSeq;
     return {
       name: this.name,
       accounts: this.accounts.size,
       settled: this.settledCount,
       volume: this.volume,
       now: Date.now(), // server clock, so a viewer can skew-correct "Xs ago" against their own clock
+      booted: this.bootedAt, // so a reader knows `settled` counts from here, not from genesis
+      sumSeq,
+      certsHeld: this.certs.size, // how much history this authority can serve a lagging peer
     };
   }
+  private readonly bootedAt = Date.now();
 
   /** Sequence reached per sender — what a peer compares against to find what it is missing. */
   digest(): { sender: string; nextSeq: number }[] {

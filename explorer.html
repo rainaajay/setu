@@ -64,7 +64,7 @@
 </p>
 
 <div class="counters">
-  <div class="counter"><b id="c-settled">—</b><span>payments settled</span></div>
+  <div class="counter"><b id="c-settled">—</b><span>payments settled (since each authority last restarted)</span></div>
   <div class="counter"><b id="c-volume">—</b><span>units moved</span></div>
   <div class="counter"><b id="c-accounts">—</b><span>accounts</span></div>
   <div class="counter"><b id="c-up">—</b><span>authorities online</span></div>
@@ -120,11 +120,12 @@ async function poll() {
       const ms = Math.round(performance.now() - t0);
       up++;
       if (typeof s.now === 'number') { serverNow = s.now; clientAtPoll = Date.now(); }
-      liveNodes.push({ ...n, settled: s.settled });
+      liveNodes.push({ ...n, settled: s.settled, sumSeq: s.sumSeq ?? 0 });
       maxSettled = Math.max(maxSettled, s.settled);
       maxVolume = Math.max(maxVolume, s.volume);
       maxAccounts = Math.max(maxAccounts, s.accounts);
       el.querySelector('.st').innerHTML = '<span class="up">online</span>';
+      el.dataset.sumseq = String(s.sumSeq ?? 0);
       el.querySelector('.lat').textContent = ms + ' ms';
       el.querySelector('.set').textContent = s.settled.toLocaleString();
     } catch {
@@ -133,6 +134,18 @@ async function poll() {
       el.querySelector('.set').textContent = '—'; // never leave a permanent "…" seeded at markup time
     }
   }));
+
+  // Show divergence instead of hiding it: an authority materially behind the best ledger is marked,
+  // because "online" alone told the visitor nothing while one node disagreed on real balances.
+  const best = Math.max(0, ...liveNodes.map((n) => n.sumSeq || 0));
+  for (const n of liveNodes) {
+    const el = $('node-' + n.name);
+    if (!el || !best) continue;
+    const behind = best - (n.sumSeq || 0);
+    el.querySelector('.st').innerHTML = behind > best * 0.001
+      ? `<span class="up">online</span> <span class="down">· behind by ${behind.toLocaleString()}</span>`
+      : '<span class="up">online</span>';
+  }
 
   $('c-settled').textContent = maxSettled.toLocaleString();
   $('c-volume').textContent = maxVolume.toLocaleString();
@@ -144,9 +157,10 @@ async function poll() {
   // time, so merging four copies of one payment is what previously showed everything 4x.
   // BUT authorities apply certificates independently and one that missed a broadcast stays behind —
   // measured live, the laggard was missing 7 of 41 payments while ALSO winning the response race.
-  // So read from the MOST COMPLETE ledger (highest settled), never merely the fastest responder.
+  // Rank by sumSeq (total sequence applied, derived from persisted state) — genuinely "most complete".
+  // NOT by `settled`, which is a per-process tally that resets on restart and so measures uptime.
   const allRecent = [];
-  liveNodes.sort((a, b) => (b.settled || 0) - (a.settled || 0));
+  liveNodes.sort((a, b) => (b.sumSeq || 0) - (a.sumSeq || 0));
   for (const n of liveNodes) {
     try {
       const r = await (await fetch(n.url + '/recent', { signal: AbortSignal.timeout(10000) })).json();
