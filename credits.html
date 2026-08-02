@@ -48,7 +48,7 @@
   <h2>Issuer</h2>
   <p>Every Credit is issued by a single named account, the <strong>Treasury</strong>, controlled by
   the operator. Every Credit in circulation traces back to a Treasury issuance — no anonymous or
-  hidden minting. The Treasury address and total supply are published and auditable on the network.</p>
+  hidden minting. This is the intended Credit model, demonstrated end-to-end in <code>src/demo-issuer.ts</code>. <strong>On the live testbed there is no Treasury account at all.</strong> The faucet (<code>/admin/fund</code>) creates test units directly in an address with no offsetting debit — capped at 1,000 per call, 100,000 per address and 60 calls per IP per hour. Live supply is therefore <em>not</em> fixed and does not trace to a single issuer.</p>
 
   <h2>Supply</h2>
   <p>The supply is <strong>fixed at genesis</strong>. The Treasury is created with a defined number

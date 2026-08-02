@@ -110,6 +110,17 @@ export class Authority {
   // Crash-safe atomic write: serialise to a temp file, back up the current good copy, then
   // rename the temp over the primary (an atomic filesystem operation). An interrupted write
   // can therefore never leave a half-written primary — the previous state stays intact.
+  // Crash-safe write on EVERY call (the pending lock must survive a restart or safety breaks): the
+  // atomic temp+rename below is what guarantees the primary is never half-written.
+  //
+  // The .bak generation is a SECOND-level safety net for the rarer case where the primary is
+  // corrupted by something other than an interrupted write. Copying the whole file on every
+  // settlement cost a second full-file read+write on the hot path — O(accounts) per payment, which
+  // grew into seconds of latency as the account set grew. It is now taken at most once per
+  // BACKUP_INTERVAL_MS, which preserves the recovery story (loadState falls back to .bak) while
+  // taking the copy off the per-payment path.
+  private lastBackupAt = 0;
+  private static readonly BACKUP_INTERVAL_MS = Number(process.env.SETU_BACKUP_INTERVAL_MS ?? 30_000);
   private persist(): void {
     if (!this.stateFile) return;
     const data = JSON.stringify({
@@ -118,7 +129,11 @@ export class Authority {
     });
     const tmp = this.stateFile + '.tmp';
     writeFileSync(tmp, data);
-    if (existsSync(this.stateFile)) copyFileSync(this.stateFile, this.stateFile + '.bak');
+    const now = Date.now();
+    if (now - this.lastBackupAt >= Authority.BACKUP_INTERVAL_MS && existsSync(this.stateFile)) {
+      copyFileSync(this.stateFile, this.stateFile + '.bak');
+      this.lastBackupAt = now;
+    }
     renameSync(tmp, this.stateFile);
   }
 
@@ -249,6 +264,10 @@ export class Authority {
       return { ok: false, error: 'bad sender signature' };
     if (!Number.isInteger(order.amount) || order.amount <= 0)
       return { ok: false, error: 'bad amount' };
+    // Never sign a self-payment: it moves nothing but would consume a sequence number and inflate
+    // the public settled/volume counters that the explorer renders as headline figures.
+    if (order.recipient === order.sender)
+      return { ok: false, error: 'self-payment' };
 
     let bucket = this.buckets.get(order.sender);
     if (!bucket) this.buckets.set(order.sender, (bucket = new TokenBucket()));
@@ -326,6 +345,16 @@ export class Authority {
 
     if (!verify(order.sender, orderBytes, senderSignature))
       return { ok: false, error: 'bad sender signature' };
+
+    // The settlement writer is the last place that mutates balances, so it validates its own inputs
+    // rather than trusting that handleOrder screened them. A NaN amount is the dangerous case: every
+    // comparison against NaN is false, so `balance - reserved < NaN` does NOT trip the spend guard —
+    // an unguarded NaN would defeat the balance check entirely and poison the balance permanently.
+    // A self-payment is a no-op that would still inflate the public settled/volume counters.
+    if (!Number.isInteger(order.amount) || order.amount <= 0)
+      return { ok: false, error: 'bad amount' };
+    if (order.recipient === order.sender)
+      return { ok: false, error: 'self-payment' };
 
     const validSigners = new Set<string>();
     for (const { authority, signature } of authoritySignatures) {

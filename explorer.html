@@ -120,7 +120,7 @@ async function poll() {
       const ms = Math.round(performance.now() - t0);
       up++;
       if (typeof s.now === 'number') { serverNow = s.now; clientAtPoll = Date.now(); }
-      liveNodes.push(n);
+      liveNodes.push({ ...n, settled: s.settled });
       maxSettled = Math.max(maxSettled, s.settled);
       maxVolume = Math.max(maxVolume, s.volume);
       maxAccounts = Math.max(maxAccounts, s.accounts);
@@ -130,6 +130,7 @@ async function poll() {
     } catch {
       el.querySelector('.st').innerHTML = '<span class="down">offline</span>';
       el.querySelector('.lat').textContent = '—';
+      el.querySelector('.set').textContent = '—'; // never leave a permanent "…" seeded at markup time
     }
   }));
 
@@ -139,11 +140,13 @@ async function poll() {
   $('c-up').textContent = up + ' / 4';
   upCount = up;
 
-  // The feed is read from ONE authority, not merged across all four. Every authority settles
-  // every payment and each stamps its own settlement time, so merging four copies of the same
-  // payment (with four different timestamps) is what previously showed each payment 4×. Reading
-  // one authority's /recent gives the complete feed with one row per payment.
+  // The feed is read from ONE authority, not merged across all four: each stamps its own settlement
+  // time, so merging four copies of one payment is what previously showed everything 4x.
+  // BUT authorities apply certificates independently and one that missed a broadcast stays behind —
+  // measured live, the laggard was missing 7 of 41 payments while ALSO winning the response race.
+  // So read from the MOST COMPLETE ledger (highest settled), never merely the fastest responder.
   const allRecent = [];
+  liveNodes.sort((a, b) => (b.settled || 0) - (a.settled || 0));
   for (const n of liveNodes) {
     try {
       const r = await (await fetch(n.url + '/recent', { signal: AbortSignal.timeout(10000) })).json();

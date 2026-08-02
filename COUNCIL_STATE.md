@@ -12,6 +12,262 @@ The council is the standing refinement body for Setu. Roster (8 seats): **Tara**
 Run one cycle with Workflow scriptPath `setu/.claude/workflows/council-cycle.js` when the owner says
 "continue the cycle" / "agent council".
 
+## Cycle 8 — 2026-08-02 — Chair: Ajay — Grade: B / down from A- — "the money claim is false, the wallet can hang, and the council's own record overclaims what it shipped"
+
+Objective (one line): the best HONEST consensusless settlement rail for the agent economy —
+plain-spoken, feels live, feels like a usable sandbox, protocol integrity never weakened.
+
+Headline: this is the worst honesty cycle since Cycle 2, and the grade goes DOWN. Three separate
+findings say the same thing — **claims are drifting away from the code faster than the council
+reconciles them.** (a) Credit found the money-adjacent claim family is live-false: credits.html,
+whitepaper.html and index.html assert a fixed-supply Treasury-traceable Credit while `authority.ts
+fund()` mints from nothing with no Treasury account on the live network at all. (b) Three seats
+independently measured `economy.html`'s "Credits in circulation" tile at **360 vs 33,290 actually
+held** — a 92× public falsehood that is a compile-time constant dressed as live state. (c) The
+Shareholder proved that **two Cycle-6 items formally decided and recorded as "FULLY implemented"
+were never shipped** (pitch.html:91 and :104 are still there in the repo AND live — I verified both
+myself this cycle), while the headline latency figure has now landed optimistic for the THIRD
+consecutive cycle (~180 ms claimed, ~250 ms measured p50). Meanwhile Bean Counter found the wallet's
+certificate-settle leg is the only fetch in index.html with no timeout — a silent forever-hang on the
+one path the owner cares most about — and Moss found the settlement writer accepts unvalidated
+amounts and self-payments. Verified live before deciding: economy.ts:701/:54, explorer.html:147-152,
+index.html:344/:436/:452-453/:468/:476-478/:579, credits.html:48-65, pitch.html:91/:104,
+authority.ts handleCertificate:323-380 (no amount guard, no self-payment guard, no balance floor).
+
+**EXECUTE (5):**
+
+1. **Stop claiming a fixed-supply Treasury Credit the live network does not have** (Credit CRITICAL +
+   HIGH, Tara HIGH, Sweetie HIGH — 3-seat convergence, and the most compliance-sensitive claim on the
+   site). (a) `credits.html:48-65` — keep the fixed-supply Treasury as the *intended Credit model,
+   demonstrated in `src/demo-issuer.ts`*, and add one plain paragraph: "On the live testbed there is
+   no Treasury account. The faucet (`/admin/fund`) creates test units directly in an address with no
+   offsetting debit — capped at 1,000 per call, 100,000 per address, 60 calls per IP per hour. Live
+   supply is therefore not fixed and does not trace to a single issuer." DELETE the unverifiable
+   sentence "The Treasury address and total supply are published and auditable on the network"
+   (there is no such address). (b) `index.html:344` "issued by a fixed-supply Treasury" → "minted on
+   request by an open testnet faucet". (c) `whitepaper.html:269` + the :333 table row — tag the
+   fixed-supply property as the closed-loop DESIGN + demo-issuer, not the live network. (d)
+   `packages/setu-economy/economy.ts:701` — replace `supply: INITIAL_SUPPLY` with a computed
+   `circulating` = sum of all agent balances + all non-guest client balances, and keep
+   `genesisSupply: INITIAL_SUPPLY` alongside; `economy.html:150` binds `c-supply` to
+   `totals.circulating` so the :70 label "Credits in circulation" becomes TRUE for the first time.
+   (e) `economy.html:66` counter label → "payments settled to date (includes the service ring's
+   internal pulse)" — the Shareholder is right that most of that number is `tradeOnce()` churn, not
+   commerce. (f) `capabilities.json` — extend the Issuance/reconciliation limitations to "the live
+   network has NO Treasury account; authority.ts fund() credits with no debit, so the fixed-supply
+   property holds in src/demo-issuer.ts only", and set `generated` to 2026-08-02 (it says 2026-07-28
+   while describing 2026-08-02 work). Needs `npm test` green + a `flyctl deploy` of setu-economy.
+
+2. **Close the last unguarded inputs to the settlement writer, and make silent divergence visible**
+   (Moss MEDIUM ×2 + his THE-one-change; owner priority (1) protocol integrity). `src/authority.ts`
+   `handleCertificate` (after the sender-signature check, ~:327): add
+   `if (!Number.isInteger(order.amount) || order.amount <= 0) return { ok:false, error:'bad amount' };`
+   and `if (order.recipient === order.sender) return { ok:false, error:'self-payment' };`. Mirror the
+   self-payment rejection in `handleOrder` after the amount check (~:250-251) so such an order is
+   never signed. Then, in BOTH apply branches (delegated ~:348, direct ~:359), detect
+   `balance < order.amount` before the debit and — WITHOUT refusing, because certificates are final
+   and refusing would break catch-up and conservation — increment a new `private divergedCount` and
+   expose `diverged: this.divergedCount` from `stats()` (:169-177). Three tests in
+   `test/protocol.test.ts`: (i) a quorum-signed cert carrying `amount: -500` / `NaN` is refused and
+   both balances untouched; (ii) five self-payments of 100 on a 100 balance are refused and
+   `stats().settled`/`volume` stay 0; (iii) a missed incoming credit diverges an authority to
+   `balance === -100` with `stats().diverged === 1`, supply still conserved on that authority, the
+   healthy three agree, and the lagging authority now refuses to sign the sender's next order
+   (pinning the silent 4→3 quorum degradation). Correct `THREAT_MODEL.md` §2 — the row "Partition /
+   lagging authority → explicit sequence gap (no silent divergence)" is FALSE for missed *incoming*
+   credits (nextSeq tracks outgoing only); extend gap #1 to say so. Deploy ×4 authorities. Rationale:
+   Moss reproduced a NaN balance defeating the spend guard entirely (`NaN - 0 < amount` is false =
+   unlimited spending) and 5 free self-payments inflating the public `settled`/`volume` counters,
+   which are rendered as headline numbers on the explorer. Same missing-guard class as the `fund()`
+   bug fixed 2026-08-02, still open in the only other balance-writing function.
+
+3. **The wallet must never hang silently and must never promise a convergence that does not exist**
+   (Bean Counter HIGH ×2, Credit HIGH, Sweetie LOW; owner priority (2)). All in `index.html`:
+   (a) `settlePayment()` :476-478 — the certificate-settle `fetch` has NO `signal:` and is the ONLY
+   fetch in the file without one; add `AbortSignal.timeout(12000)`. Today one stalled connection
+   leaves `Promise.all` pending forever and the wallet sits on "signing and broadcasting…" with no
+   error and no receipt — the exact Cycle-1 faucet-hang class, fixed for the faucet and left open on
+   the payment path. The `.catch(() => ({ok:false}))` handles rejection, not a hang. (b) :468 order
+   leg `AbortSignal.timeout(8000)` → `12000` — a measured 6.71s cold authority plus ~1.8s cold TLS
+   leaves ~1.3s of margin, and an abort does NOT cancel the durable `account.pending` lock the
+   accepting authorities already persisted (authority.ts:274-275). (c) :472 sub-quorum error — change
+   `'no quorum: ' + errors` to text that is safe to act on: "only N of 4 authorities answered — press
+   pay again with the IDENTICAL amount and recipient; changing either will lock this payment slot."
+   Do NOT auto-retry. Without this, the natural human response (retry a smaller amount) returns
+   "conflicting order pending at this sequence" and, with no lock cancellation in the protocol,
+   bricks the visitor's wallet at that seq. (d) `faucet()` :452-453 — replace "(the rest are
+   unreachable and will catch up)" with the truth: "minted on N/4 — the others did not answer. There
+   is no background sync between authorities: press faucet again to top them up. At least three must
+   hold your balance before you can spend." Credit proved zero convergence 6+ minutes after a
+   single-authority fund, and `fund()` produces no certificate so the tested certificate-driven
+   catch-up path does not apply. (e) `refreshBalance()` :436 — "(authorities syncing)" → "(only N/4
+   agree — press faucet again)". (f) :209 — delete the clause "watch the green dot cross to
+   {out.want} above"; it names a service CATEGORY, not a node on the diagram, so the instruction
+   cannot be followed. HTML-only, ships to Vercel via the .vercelignore allowlist.
+
+4. **The "live window" page must stop reading its feed from the authority that is missing payments**
+   (Tara HIGH + MEDIUM; owner priority (2)). `explorer.html` `poll()` :112-153: (a) at :123 change
+   `liveNodes.push(n)` to `liveNodes.push({ ...n, settled: s.settled })`, and immediately before the
+   `/recent` loop at :147 add `liveNodes.sort((a, b) => b.settled - a.settled)` so the feed always
+   reads from the MOST COMPLETE ledger rather than the fastest responder. Tara pulled `/recent` from
+   all four over a common window: union 41 payments, auth-4 missing 0, auth-2/3 missing 1, **auth-1
+   missing 7** — interleaved, so not a ring-buffer artefact — and auth-1 won the response race 4/4
+   from a European client. Replace the now-FALSE comment at :145-151 ("first reachable authority is
+   enough — it has the whole ledger") with the true statement: authorities apply certificates
+   independently and one that missed a broadcast stays behind. Keep ONE authority (do not merge two)
+   — the Cycle-1 4×-duplicate bug came from deduping on `tx.at`, which differs per authority.
+   (b) catch block :130-133 — add `el.querySelector('.set').textContent = '—';` so an unreachable
+   authority never renders a permanent "…" (seeded at :102, written only inside the try) and a
+   once-live-then-dead node never shows a frozen count as current. (c) success path :127-129 — when
+   `s.settled` is more than 1% below `maxSettled`, render "online · behind by N" instead of a bare
+   "online", so auth-1's 1,841 beside a 2,567 headline reads as an explained lag, not a broken page.
+   Client-side only, zero cost.
+
+5. **Fix the latency number from a reproducible command, ship the guard that stops it recurring, and
+   actually apply the two Cycle-6 edits that never shipped** (Shareholder CRITICAL + HIGH; carried
+   CFO queue item). (a) Replace the "~180 ms warm (p50)" family at `index.html:579`, `pitch.html:66`,
+   `pitch.html:77` (stat tile), `pitch.html:83` and the whitepaper tile with the MEASURED figure:
+   "~250 ms warm p50 across four regions (p90 ~900 ms; ~240 ms per hop to re-spend received funds —
+   reproduce with `npm run bench:chain:wan`)". DELETE the stale "matches the 183 ms/hop chained-spend
+   benchmark" corroboration at index.html:579 — the benchmark now returns 239 ms and
+   `src/chain-bench-wan.ts:23` itself comments "~250ms/hop". Two independent live measurements this
+   cycle (n=12 p50 256 ms; n=25 p50 254 ms) agree. (b) Ship `scripts/check-claims.mjs` (or
+   `test/claims.test.ts`): grep index/pitch/whitepaper/credits for the canonical latency, throughput,
+   quorum and test-count tokens, assert exactly ONE numeric value per metric across pages, wire into
+   `npm test`. This exact miss has now recurred three cycles; fixing the number without the guard
+   just queues cycle four. (c) Apply the two Cycle-6 items recorded as shipped but verified ABSENT
+   from repo and live: `pitch.html:104` replace "(the piece nobody else has)" with "(enforced in the
+   settlement layer itself — no chain, no smart-contract VM, checked in one round trip)" — the
+   superlative is falsifiable in the room (AP2 mandates, Mastercard Agent Pay); and DELETE
+   `pitch.html:91` "That is the market telling you this is real." (d) Re-sync `capabilities.json:36`
+   and `STATUS.md:28` to the ACTUAL `npm test` count after item 2's three new tests land — run it and
+   write the real number; Moss counted 26 and the Shareholder counted 29, so measure, do not assume.
+   (e) One-line fix to `packages/setu-gateway/demo.ts:33` — read `card.payments.price.amount` /
+   `.asset` (gateway.ts:68 puts price under `payments`, not on the skill), because capabilities.json
+   cites this file as the evidence for the x402 claim and it currently crashes on its first step, so
+   the first thing a technical partner runs from the repo fails.
+
+**Conflicts resolved:**
+- **Tara vs Bean Counter on `index.html` timeouts.** Tara measured `/state` at max 2.66s over eight
+  calls (3.4× margin under the existing 9s cap) and moved to DROP the queued loadMarket 9000→12000;
+  Bean Counter proposed raising it. Tara's measurement wins for `loadMarket` — **DROPPED**. But Bean
+  Counter's *other* two are kept in item 3 on different evidence: the settle leg has no timeout AT
+  ALL (not a margin question), and the order leg's 8s is genuinely thin against a recorded 6.71s cold
+  authority plus 1.8s cold TLS. Different defects, different verdicts.
+- **Moss + Tara vs the Cycle-7 queue item "persist the /stats counters or relabel per-restart".**
+  Both seats independently falsified its premise: `recent` and `settledCount` are written on the same
+  lines (authority.ts:369-378), so auth-1's `/recent` gap proves MISSING CERTIFICATES, not a reset
+  counter. Persisting would make a real ledger gap look official; relabelling would assert a restart
+  that did not happen. **DROPPED as written**, re-scoped into item 2's `diverged` counter and item
+  4c's honest "behind by N".
+- **Sweetie's viz redraw vs the explorer fix** — both HIGH, one slot. Explorer wins this cycle: it is
+  a completeness falsehood on the page whose only job is truthful live state, and it is a one-line
+  sort. Sweetie's finding is real and now TOP of the Cycle-9 queue.
+- **Shareholder wants `tradeOnce()` cut; Sweetie wants the viz to show the peer market.** Same root
+  cause (the internal pulse both inflates the counter and dominates the picture). I will NOT delete
+  it this cycle — that would strip most of the landing motion and hit owner priority (2)/(4) hard.
+  The honest interim is the label (item 1e); the structural answer is the combined Cycle-9 item.
+
+**DEFER (Cycle 9 queue, ordered):**
+- **Redraw the landing viz as a peer market + slow the internal pulse + relabel** (Sweetie HIGH,
+  Shareholder MEDIUM — combined). 58 of the last 61 payments are app→app, but `index.html` build()/
+  place() pins clients at x=165 and agents at x=655 (:138-139) and pulse() interpolates a straight
+  line, so 95% of real payments animate as a degenerate vertical jitter inside one column while the
+  entire right column labelled "AGENTS — SUPPLY" receives almost nothing. Fix: ellipse/arc layout
+  with the service ring in the centre, quadratic-bezier pulses, honest labels ("each one both buys
+  and sells" + "SERVICE RING"), and slow `tradeOnce()` (INTERVAL_MS 2000) to ~1 per 20-30s so the
+  headline counter means commerce. Bonus: the freed vertical space fixes the mobile finding (node
+  labels currently render at 4.84 CSS px and real-payment dots at 3.23 px on a 430 px phone).
+- **Make server-enforced delegation clickable on the live network** (Shareholder HIGH — his THE-one-
+  change). pitch.html:67 calls it "its defining feature for agents" yet it appears ZERO times in
+  explorer/economy/arena and once in index (a tagline); `packages/setu-pay` exports no delegation API
+  and `src/demo-allowance.ts` uses `InProcessNetwork`, so nobody can run it. He verified it IS live
+  and enforced (cap → "exceeds per-payment cap", exhaustion, revocation, all ×4). Build
+  `src/demo-allowance-live.ts` over committee-prod.json + an "Agent budget" panel in the wallet with
+  three buttons rendering the authorities' verbatim refusals. Strong item; lost only to five
+  higher-severity honesty/integrity items.
+- **The primer's two-minute version** (Sweetie, open since Cycle 1 — deferred SEVEN cycles). The
+  landing says "New to this? Start with Setu in plain words" and the primer's own meta says "about a
+  40-minute read". This is the site's only non-technical door and it is 40 minutes wide. ~25 lines of
+  static HTML. If it is not executed in Cycle 9 the chair should stop pretending it is queued and
+  either ship it or DROP it honestly — priority (3) has now lost seven cycles running.
+- **Move the whole-file `.bak` copy off the per-settlement hot path** (Bean Counter MEDIUM, carried).
+  `persist()` :113-123 runs twice per payment; the `.bak` `copyFileSync` is 44% of its cost at today's
+  614 accounts, and `accounts` grows ~3,800/day and never shrinks (benchmarked: 1.67 ms at 424
+  accounts → 13.05 ms at 20,000, ~5 days out). Keep atomic temp+rename on every call; regenerate
+  `.bak` at boot + on a ~60s timer. EXPLICITLY NOT paired with account pruning — dropping
+  zero-balance accounts resets `nextSeq` and re-opens replay, which is a protocol weakening.
+- **Assert the x402 loop as a real test** (Shareholder HIGH, second half). `test/gateway.test.ts`
+  spawning gateway.ts against in-process authorities: 402 challenge shape → pay → HTTP 200 with the
+  resource → replay returns 402 "invoice already redeemed". Then update capabilities.json's x402
+  `tests` field from "live demo, not asserted" to the named test, KEEPING the "NOT verified against
+  official x402 conformance fixtures" limitation verbatim. Item 5e fixes the crash now; this makes
+  the evidence durable.
+- **Honest retries must not burn rate-limit tokens** (Moss MEDIUM, upgraded from LOW, carried). He
+  reproduced it: 7 identical resubmissions of ONE order → signed ×5, then "rate limited" ×2, because
+  `bucket.tryConsume()` (:253-255) runs before the idempotent-match check (:266-270). Re-signing an
+  order already locked and persisted creates no new state, so charging it a spam token only throttles
+  the honest client trying to drive its own valid lock to quorum — which finding 1 shows is the
+  ORDINARY recovery path. Move the exact-match branch ahead of the bucket; keep the bucket for every
+  NEW order.
+- **Certificate settle-leg retry / minimal anti-entropy** (Tara MEDIUM). `src/client.ts:94-99`
+  broadcasts the certificate once via `Promise.allSettled` and never retries the authorities that
+  failed, so a cold machine that times out on the settle leg is permanently behind for that payment.
+  This is the ROOT CAUSE of item 4's feed gap and item 2's divergence. Needs a careful design pass —
+  a client-side retry is cheap; real authority-to-authority anti-entropy is a protocol-shape question
+  and would ESCALATE.
+- **Demote or delete economy.html's "The residents — who they are" panel** (Sweetie MEDIUM). It gets
+  a co-equal half-width centrepiece while accounting for 3 of the last 61 payments, and four of seven
+  cards render "0 Credits" directly under a thoughts feed led by an agent saying it is broke.
+- Still open from Cycle 5/6: the OPEN on-ramp for OUTSIDERS to SUPPLY and VERIFY; human-verifier
+  option; football-league council schema.
+
+**DROP:**
+- **Widen the three 2.5s poll loops to ~4.5s** (Bean Counter's own drop, Cycle-7 queue). Premise
+  disproven by measurement: browsers reuse one keep-alive connection across a `setInterval` poll, and
+  on a reused connection `/state` returns in 43-86 ms ttfb. The 2-8 s figures were per-invocation
+  curl CONNECTION SETUP — proved decisively by `/health` (40 bytes) taking 3.32 s while `/state`
+  (26.5 KB) took 0.13 s in the same second. Widening would cost liveness and save nothing.
+- **Micro-cache `/state` for ~1000 ms** (Cycle-4/5 queue). Same disproven premise; would buy
+  single-digit milliseconds while adding a staleness window to the page whose entire job is live
+  state.
+- **Raise `index.html` loadMarket timeout 9000→12000** (Cycle-7 queue). Does not reproduce — eight
+  timed `/state` calls maxed at 2.66 s, median ~0.28 s, against a 9 s cap. Would only mask a real
+  stall for three extra seconds.
+- **Persist the `/stats` settled + volume counters** (Cycle-7 queue). Superseded — see the conflict
+  note. They are per-process activity tallies, not ledger state; persisting makes a misleading number
+  durable. Item 2's `diverged` counter is the meaningful signal.
+- **Bounded `EXPIRY_SKEW_MS` tolerance on delegation expiry** (Moss's own drop, Cycle-7 queue). It
+  buys a narrow liveness win — a stall only at the exact expiry instant, which a client resolves by
+  requesting a fresh allowance — in exchange for a window where an EXPIRED delegation is still
+  spendable, plus a four-authority deploy. Chair's call: **DROPPED.** We do not loosen an expiry check
+  for a liveness nicety; it stays documented as gap #3 in THREAT_MODEL.md.
+- **`pitch.html:104` "(the piece nobody else has)"** — dropped as hype (executed inside item 5c). The
+  true and stronger claim is the mechanism, not the monopoly.
+
+**ESCALATE:** none. No item spends beyond caps, needs credentials or keys, or changes protocol shape.
+Item 2's guards TIGHTEN existing checks (they only refuse orders no honest client sends) and the
+`diverged` counter is additive to `/stats` — backward-compatible, same wire format, so it sits inside
+the seat's integrity mandate rather than being an escalation. The ANTHROPIC_API_KEY is already a Fly
+secret. Real authority-to-authority anti-entropy WOULD be a protocol-shape escalation — that is
+exactly why it is deferred as a design pass, not executed as a quick fix.
+
+**Deploy note:** items 3, 4, 5a-c ship to Vercel (HTML, via the strict `.vercelignore` allowlist);
+item 1a-c/e also Vercel, item 1d needs a `flyctl deploy` of setu-economy after `npm test`; item 2
+needs `npm test` green then a `flyctl deploy` of auth-1..4; items 1f, 5d, 5e are repo files. If
+flyctl auth fails, use `FLY_API_TOKEN=$(cat scratchpad/fly_token)` per the Cycle-5 ops note. Re-run
+`npm test` LAST and write the true count into capabilities.json + STATUS.md.
+
+**NOT CONVERGED** — a CRITICAL live-false money claim, a 92× wrong public counter, a wallet that can
+hang forever with no error, an explorer feed silently missing 17% of payments, an unguarded
+settlement writer that accepts NaN amounts, and two council decisions recorded as shipped that were
+never shipped. That is not a cosmetic-polish-only state. **Grade B, DOWN from A-** — protocol
+integrity is improving cycle over cycle, but claim honesty regressed and, more seriously, the
+council's own execution record proved unreliable. Cycle 9 must VERIFY each Cycle-8 item live before
+recording it as done.
+
+---
+
 **CYCLE 6 FOCUS (2026-07-29):** The economy is now a VERIFIED WORK MARKETPLACE, app-to-app. Judge it
 live: (1) apps fulfil EACH OTHER's demand (pickSupplier prefers another app over the ring; SUPPLIES
 map); (2) every job is a VERIFIED JOB — genCriteria quantifies the demand into acceptance criteria, an

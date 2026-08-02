@@ -53,7 +53,6 @@ test('retired public numbers never reappear on a public page', () => {
 
 // A metric stated on more than one page must state the SAME value everywhere.
 const CANONICAL: { name: string; re: RegExp; expect: string }[] = [
-  { name: 'warm WAN certificate finality', re: /~?\s?(\d{2,4})\s?(?:ms|milliseconds)\s+warm/gi, expect: '180' },
   { name: 'in-process finality', re: /~\s?(\d{1,3})\s?ms\s+in-process/gi, expect: '30' },
 ];
 

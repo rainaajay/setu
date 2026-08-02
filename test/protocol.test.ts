@@ -358,3 +358,42 @@ test('a partitioned authority stalls on a sequence gap, cannot be double-spent a
     assert.equal(supply(a, addrs), 1000, 'no value created or destroyed by the partition');
   }
 });
+
+// The settlement writer is the last place balances change, so it validates its own inputs instead of
+// trusting handleOrder. NaN is the dangerous case: every comparison against NaN is false, so a NaN
+// amount does NOT trip the `balance - reserved < amount` spend guard — unguarded, it would defeat the
+// balance check entirely and poison the balance permanently.
+test('a quorum-signed certificate with a bad amount is refused and leaves balances untouched', async () => {
+  const { auths } = committee();
+  const alice = generateKeyPair();
+  const bob = generateKeyPair().publicKey;
+  auths.forEach((a) => a.fund(alice.publicKey, 500));
+
+  for (const bad of [-500, 0, 1.5, NaN]) {
+    const order = { sender: alice.publicKey, recipient: bob, amount: bad as number, seq: 0 } as TransferOrder;
+    const signed = signOrder(alice, order);
+    // Force a full quorum of authority signatures over the malformed order, so the ONLY thing that
+    // can stop it is handleCertificate's own guard.
+    const sigs = auths.map((a) => ({ authority: a.keys.publicKey, signature: sign(a.keys.privateKey, canonical(order)) }));
+    const res = await auths[0].handle({ type: 'certificate', certificate: { order, senderSignature: signed.senderSignature, authoritySignatures: sigs.slice(0, QUORUM) } }) as any;
+    assert.equal(res.ok, false, `amount ${bad} must be refused at settlement`);
+    assert.equal(auths[0].balanceOf(alice.publicKey), 500, `sender untouched after amount ${bad}`);
+    assert.equal(auths[0].balanceOf(bob), 0, `recipient untouched after amount ${bad}`);
+  }
+});
+
+test('self-payments are never signed and never settle (they would inflate the public counters)', async () => {
+  const { auths } = committee();
+  const alice = generateKeyPair();
+  auths.forEach((a) => a.fund(alice.publicKey, 100));
+  const before = auths[0].stats();
+
+  for (let i = 0; i < 5; i++) {
+    const r = await pay(auths, alice, alice.publicKey, 100, i);
+    assert.equal(r.certified, false, 'a self-payment must not reach quorum');
+  }
+  const after = auths[0].stats();
+  assert.equal(after.settled, before.settled, 'settled counter must not move');
+  assert.equal(after.volume, before.volume, 'volume counter must not move');
+  assert.equal(auths[0].balanceOf(alice.publicKey), 100, 'balance unchanged');
+});

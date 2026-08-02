@@ -698,7 +698,12 @@ const server = createServer((req, res) => {
     booted, now: Date.now(), lastTradeAt, intervalMs: INTERVAL_MS, network: 'setu-testnet', asset: 'Setu Credit',
     brain: { active: brainOn(), armed: !!brainKey(), model: MODEL, calls: cogCalls, spentUsd: Math.round(spentUsd * 100) / 100, budgetUsd: MONTHLY_BUDGET_USD },
     thoughts,
-    totals: { transactions: totalTx, gdp, agents: agents.length, supply: INITIAL_SUPPLY },
+    totals: { transactions: totalTx, gdp, agents: agents.length,
+      // Credits actually held right now. This was a compile-time constant (INITIAL_SUPPLY) rendered
+      // under a "Credits in circulation" label — 360 shown against ~33,000 truly held. The clients are
+      // faucet-funded, so the fixed-supply premise behind the constant stopped being true.
+      circulating: Math.round([...agents, ...clients.filter((c) => !c.guest)].reduce((a, x) => a + (x.balance || 0), 0)),
+      genesisSupply: INITIAL_SUPPLY, supply: INITIAL_SUPPLY },
     // fullAddress lets a visitor's browser wallet pay a specific agent on the real network.
     // It is a public key — safe to publish; paying TO an address is always safe.
     agents: agents.map((a) => ({ name: a.name, service: a.service, desc: a.desc, price: a.price, color: a.color, address: a.address.slice(16, 24) + '…', fullAddress: a.address, balance: a.balance, sold: a.sold, bought: a.bought, revenue: a.revenue })),

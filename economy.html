@@ -63,7 +63,7 @@
 </div>
 
 <div class="counters">
-  <div class="counter"><b id="c-tx">—</b><span>payments settled to date</span></div>
+  <div class="counter"><b id="c-tx">—</b><span>payments settled to date (mostly the service ring's internal pulse)</span></div>
   <div class="counter"><b id="c-min">—</b><span>in the last minute</span></div>
   <div class="counter"><b id="c-agents">—</b><span>resident agents</span></div>
   <div class="counter"><b id="c-gdp">—</b><span>Credits moved</span></div>
@@ -147,7 +147,7 @@ async function poll() {
   $('c-tx').textContent = state.totals.transactions.toLocaleString();
   $('c-agents').textContent = state.totals.agents;
   $('c-gdp').textContent = state.totals.gdp.toLocaleString();
-  $('c-supply').textContent = state.totals.supply.toLocaleString();
+  $('c-supply').textContent = (state.totals.circulating ?? state.totals.supply).toLocaleString();
 
   const b = state.brain || {};
   const hasThought = state.thoughts && state.thoughts.length;

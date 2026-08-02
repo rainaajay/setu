@@ -341,7 +341,7 @@
   <p>Keys are generated in your browser and stay in your browser (localStorage). The
   faucet mints test units; a payment is final when three of the four authorities above
   have countersigned it. Nothing here is money — the units are closed-loop
-  <a href="/credits.html">Setu Credits</a>, issued by a fixed-supply Treasury and redeemable
+  <a href="/credits.html">Setu Credits</a>, minted on request by an open testnet faucet and redeemable
   only for services in the Setu economy.</p>
   <div id="wallet" style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:14px">
     <div id="w-setup"><button id="w-create" class="wbtn">Create wallet</button></div>
@@ -475,7 +475,7 @@
       const ms = performance.now() - t0;
       const settles = await Promise.all(AUTH.map((url) => fetch(url, { method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ type: 'certificate', certificate }) }).then((r) => r.json()).catch(() => ({ ok: false }))));
+        body: JSON.stringify({ type: 'certificate', certificate }), signal: AbortSignal.timeout(12000) }).then((r) => r.json()).catch(() => ({ ok: false }))));
       return { ok: true, ms, settled: settles.filter((s) => s.ok).length, certificate };
     }
 
@@ -576,7 +576,7 @@
 <section>
   <h2>Measured on the current build</h2>
   <div class="stats">
-    <div class="stat"><b>~30 ms</b><span>in-process finality, four authorities on one machine (<code>npm run demo</code>); ~180 ms warm across four regions on three continents (p50, matches the 183 ms/hop chained-spend benchmark; 216 ms to re-spend received funds; higher when a region is cold)</span></div>
+    <div class="stat"><b>~30 ms</b><span>in-process finality, four authorities on one machine (<code>npm run demo</code>); about 1 s p50 across four regions on three continents as measured on 2026-08-02 from a browser (0.7-1.2 s typical; slower from a cold client). Most of that is TLS setup and queueing, not settlement: on a warm connection an authority answers in ~40 ms</span></div>
     <div class="stat"><b>~340–420 /s</b><span>transfers per second, all settled, on a single laptop (Node 24; run npm run bench)</span></div>
     <div class="stat"><b>3 of 4</b><span>signatures make a payment final; one authority can fail or lie without effect</span></div>
     <div class="stat"><b>0</b><span>fees, and 0 runtime dependencies. Spam is priced by rate limits, not gas</span></div>

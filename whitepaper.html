@@ -228,7 +228,7 @@ Certificate   { order, senderSignature,
   <h2 id="evidence"><span class="n">06</span>Prototype and evidence</h2>
   <div class="stats">
     <div class="stat"><b>~30 ms</b><span>in-process certificate finality, four authorities on one machine (npm run demo)</span></div>
-    <div class="stat"><b>~180 ms</b><span>warm certificate finality, four regions (p50; higher when a region is cold)</span></div>
+    <div class="stat"><b>~1 s</b><span>certificate finality, four regions, measured 2026-08-02 from a browser; the authority itself answers in ~40 ms on a warm connection</span></div>
     <div class="stat"><b>48/48</b><span>chained spends first-try on the live four-region network (~183 ms/hop); 280/280 on a laptop</span></div>
     <div class="stat"><b>3 of 4</b><span>signatures form a certificate</span></div>
   </div>
@@ -330,7 +330,7 @@ Certificate   { order, senderSignature,
     <tr><td>Delegated-budget enforcement</td><td>Implemented and demonstrated server-side (§5).</td></tr>
     <tr><td>Chained-spend correctness</td><td>Demonstrated locally and across the live four-region network (~183&nbsp;ms/hop).</td></tr>
     <tr><td>Independent validators</td><td>Not yet — one operator/codebase/cloud (replication).</td></tr>
-    <tr><td>Settlement asset</td><td>Closed-loop Credit defined and issued from a fixed-supply Treasury (auditable). Regulated-money anchoring &amp; legal finality remain future.</td></tr>
+    <tr><td>Settlement asset</td><td>Closed-loop Credit with a fixed-supply Treasury as the DESIGN, demonstrated in <code>src/demo-issuer.ts</code>. The live testbed has no Treasury: the faucet mints capped test units with no offsetting debit. Regulated-money anchoring &amp; legal finality remain future.</td></tr>
     <tr><td>Production scale</td><td>Unproven — laptop benchmark only.</td></tr>
     <tr><td>Sustainable economics</td><td>Unproven — "no per-transaction fee," not free; funding model TBD.</td></tr>
     <tr><td>Governance &amp; maintenance</td><td>Open — rotation/upgrades may need a consensus layer (§4).</td></tr>
