@@ -14,7 +14,8 @@
     "devnet": "node src/devnet.ts",
     "bench": "node src/bench.ts",
     "bench:chain": "node src/chain-bench.ts",
-    "bench:chain:wan": "node src/chain-bench-wan.ts"
+    "bench:chain:wan": "node src/chain-bench-wan.ts",
+    "demo:allowance:live": "node src/demo-allowance-live.ts"
   },
   "engines": {
     "node": ">=23.6"

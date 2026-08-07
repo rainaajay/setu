@@ -30,7 +30,7 @@ try {
 
   console.log('1. DISCOVER — read the agent card');
   const card = await (await fetch(`${BASE}/.well-known/agent-card.json`)).json();
-  console.log(`   found "${card.name}": ${card.skills[0].name} @ ${card.skills[0].price.amount} ${card.skills[0].price.asset}`);
+  console.log(`   found "${card.name}": ${card.skills[0].name} @ ${card.payments.price.amount} ${card.payments.price.asset}`); // price lives on card.payments, not on the skill
   console.log(`   pays via ${card.payments.protocol}/${card.payments.scheme}\n`);
 
   console.log('2. REQUEST without paying → expect 402');

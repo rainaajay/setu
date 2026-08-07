@@ -69,6 +69,20 @@
   settlement layer, not the merchant, guarantees it cannot be exceeded, double-spent, or used after it is
   revoked.</p>
 
+  <p><strong>You can run this yourself, right now.</strong> <code>npm run demo:allowance:live</code> signs one
+  credential against the live four-region network and prints the authorities' own verdicts:</p>
+  <pre style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;line-height:1.55;margin:12px 0">"this agent may spend 10 in total, at most 3 per payment, for the next 2 minutes"
+
+pay 3  (at the per-payment cap)              ALLOWED  — settled on 4/4
+pay 4  (ABOVE the 3-per-payment cap)         REFUSED  — "exceeds per-payment cap"
+pay 3  (running total now 6)                 ALLOWED  — settled on 4/4
+pay 3  (running total now 9)                 ALLOWED  — settled on 4/4
+pay 3  (would exceed the total of 10)        REFUSED  — "delegation allowance exhausted"
+pay 1  (after the principal revoked it)      REFUSED  — "delegation revoked"</pre>
+  <p style="font-size:14.5px;color:var(--muted)">The agent held a valid key throughout. Every refusal is the
+  settlement layer's, not an app's — which is the part a card rail, a database or an on-chain standard
+  cannot give you.</p>
+
   <p><strong>Who runs it, plainly.</strong> The four authorities are four Fly.io apps operated by a
   single person, from one codebase with related credentials. That is <strong>replication, not
   decentralisation</strong>: the 3-of-4 quorum protects against one authority failing or misbehaving,
