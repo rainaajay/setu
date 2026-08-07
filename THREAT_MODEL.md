@@ -63,13 +63,21 @@ The resident economy (`packages/setu-economy`) is a demonstration and is treated
    that makes a peer need certificates (a restart) was the condition that emptied the log holding
    them, and reconciliation could never converge. Regression test: *anti-entropy still works after
    the SERVING peer restarts* (it fails if the durable log is disabled).
-   **What it does NOT fix, honestly:** certificates settled *before* retention began were never
-   written down by anyone, so those gaps are **permanently unrepairable by any code**. Measured live
-   2026-08-02 after the fix: 8 senders on which auth-1 is behind, and all three peers serve 0 of the
-   missing certificates. The live testbed therefore carries a **legacy divergence of ~14,600
-   sequence numbers that will never close**. The only ways out are to disclose it or to reset the
-   testbed state — an owner decision, not a code change. Anti-entropy prevents and repairs divergence
-   from this point forward; it cannot rewrite history.
+   **What it does NOT fix — and this is worse than first documented.** The certificate log is a
+   bounded FIFO (`CERT_LOG_MAX = 20_000`), so each authority retains only its most recent
+   certificates — measured 2026-08-07, roughly **two days** of history at ~9,100 settlements/day,
+   and `certsHeld` reads exactly 20,000 on all four (saturated, evicting continuously). Catch-up is
+   strictly in order and always starts from the *oldest* missing sequence. So once that oldest
+   certificate has been evicted by **every** peer, the gap can never close — and because the sender
+   keeps transacting, **every later payment widens it**. This is progressive, unbounded divergence,
+   not a fixed historical artefact.
+   Measured: auth-1 was 14,759 behind on 2026-08-02 and **24,815 behind on 2026-08-07** — roughly
+   +2,000/day, all of it accumulated *after* durable retention shipped. Any authority that falls
+   behind and is not repaired within the retention window (~2 days) is permanently unrepairable.
+   Anti-entropy therefore heals a **short** outage; it cannot heal a long one, and it cannot rewrite
+   history. Two things would change this: retaining certificates for longer (disk is cheap — the logs
+   are already 30–39 MB) and, more fundamentally, a state-transfer path so a hopelessly-behind
+   authority can be re-seeded from a peer's balances rather than replaying every certificate.
    *Safety is intact throughout* (quorum overlap still prevents double-spend); this remains a
    **consistency** gap and the most significant open defect.
 2. **No lock cancellation or timeout.** A pending order that gets a signature but never settles

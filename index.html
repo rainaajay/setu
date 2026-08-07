@@ -311,20 +311,31 @@
         try {
           const t0 = performance.now();
           const res = await fetch(el.dataset.url + '/health', { signal: AbortSignal.timeout(10000) });
-          await res.json();
+          const h = await res.json(); // the body says whether this authority is BEHIND — do not discard it
           const ms = Math.round(performance.now() - t0);
+          const behind = Number(h?.behindBy || 0);
           b.textContent = ms + ' ms';
-          return ms;
+          if (behind > 0) {
+            const note = document.createElement('div');
+            note.style.cssText = 'font-size:12px;color:var(--accent);margin-top:2px';
+            note.textContent = 'behind by ' + behind.toLocaleString();
+            const host = el.querySelector('span');
+            if (host) host.appendChild(note);
+          }
+          return { ms, behind };
         } catch {
           b.textContent = 'down';
           return null;
         }
       }));
-      const up = results.filter((r) => r !== null);
+      const laggards = results.filter((r) => r && r.behind > 0).length;
+      const up = results.filter((r) => r !== null).map((r) => r.ms);
       if (up.length >= 3) {
         const med = up.slice().sort((a, b) => a - b)[Math.floor(up.length / 2)];
-        summary.textContent = `${up.length} of 4 authorities answering — quorum is live. Median round trip from your browser: ${med} ms.`;
-        summary.style.color = 'var(--good)';
+        summary.textContent = laggards
+          ? `${up.length} of 4 authorities answering — quorum is live, but ${laggards} ${laggards === 1 ? 'is' : 'are'} behind on ledger history (see the explorer). Median round trip: ${med} ms.`
+          : `${up.length} of 4 authorities answering — quorum is live. Median round trip from your browser: ${med} ms.`;
+        summary.style.color = laggards ? 'var(--accent)' : 'var(--good)';
       } else if (up.length > 0) {
         summary.textContent = `Only ${up.length} of 4 authorities answered just now — below the 3 needed for finality. Some machines may be waking from idle; reload in a moment.`;
         summary.style.color = 'var(--accent)';

@@ -74,9 +74,13 @@
 <div class="nodes" id="nodes"></div>
 
 <p style="color:var(--muted); font-size:12.5px; margin:-8px 0 18px">
-  An authority that fell behind before 2 August 2026 cannot be repaired: the certificates it missed
-  were never written to disk by any authority, so a "behind by N" figure above will not fall.
-  Certificate retention is now durable, so gaps opening from here on do heal. See THREAT_MODEL.md.
+  A "behind by N" figure above will not fall, and for a badly-lagging authority it <em>rises</em>.
+  Each authority keeps only its most recent certificates (roughly the last two days at current
+  throughput). Once the oldest certificate an authority still needs has been evicted by every peer,
+  that gap can never be closed — and because catch-up is strictly in order, every later payment by
+  those senders widens it. Measured 2026-08-07: one authority is ~24,800 sequence numbers behind and
+  growing. Retention is durable, so a short outage now heals; an authority left behind for days does
+  not. See THREAT_MODEL.md.
 </p>
 
 <h2>Live payments</h2>
