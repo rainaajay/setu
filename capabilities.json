@@ -1,40 +1,310 @@
 {
-  "_comment": "Honest capability registry (brief §4). Status is one of: implemented-tested | implemented-unreviewed | demonstration | partial | planned | disabled. 'reviewed' means independent external review — false everywhere until an audit is done. Generated/maintained by hand; keep it truthful.",
-  "generated": "2026-07-28",
+  "_comment": "Honest capability registry (brief \u00a74). Status is one of: implemented-tested | implemented-unreviewed | demonstration | partial | planned | disabled. 'reviewed' means independent external review \u2014 false everywhere until an audit is done. Generated/maintained by hand; keep it truthful.",
+  "generated": "2026-08-03",
   "network": {
-    "deployment": "centralised research deployment — 4 authorities (lhr/fra/iad/sin) under a SINGLE operator, one codebase, one cloud (Fly.io), related credentials. This is replication, not decentralised governance.",
+    "deployment": "centralised research deployment \u2014 4 authorities (lhr/fra/iad/sin) under a SINGLE operator, one codebase, one cloud (Fly.io), related credentials. This is replication, not decentralised governance.",
     "reviewed": false
   },
   "capabilities": [
-    { "name": "Quorum-signed settlement (consensusless, FastPay-family)", "layer": "settlement", "status": "implemented-tested", "location": "src/authority.ts, src/client.ts", "tests": "test/protocol.test.ts (happy-path, quorum)", "deployment": "live: setu-auth-1..4.fly.dev", "reviewed": false, "limitations": "durable Fly volume (SETU_STATE_DIR=/data); single operator" },
-    { "name": "Double-spend prevention (first-seen lock, quorum overlap)", "layer": "settlement", "status": "implemented-tested", "location": "src/authority.ts", "tests": "test/protocol.test.ts", "deployment": "live", "reviewed": false, "limitations": "" },
-    { "name": "Sequence monotonicity / replay prevention", "layer": "settlement", "status": "implemented-tested", "location": "src/authority.ts", "tests": "test/protocol.test.ts", "deployment": "live", "reviewed": false, "limitations": "" },
-    { "name": "Byzantine tolerance (f=1 of 4)", "layer": "settlement", "status": "implemented-tested", "location": "src/authority.ts (EquivocatingAuthority)", "tests": "test/protocol.test.ts", "deployment": "in-process test + live network demo", "reviewed": false, "limitations": "partition/catch-up now tested (§18); clock-skew on delegation expiry still untested" },
-    { "name": "Value conservation (no minting via transfers)", "layer": "settlement", "status": "implemented-tested", "location": "src/authority.ts", "tests": "test/protocol.test.ts", "deployment": "live", "reviewed": false, "limitations": "" },
-    { "name": "Offline certificate (receipt) verification", "layer": "service-commerce", "status": "implemented-tested", "location": "src/certificates.ts, packages/setu-pay", "tests": "test/protocol.test.ts", "deployment": "live (SDK)", "reviewed": false, "limitations": "" },
-    { "name": "Idempotent settlement", "layer": "settlement", "status": "implemented-tested", "location": "src/authority.ts", "tests": "test/protocol.test.ts", "deployment": "live", "reviewed": false, "limitations": "" },
-    { "name": "Persistence + crash-safe recovery (durable)", "layer": "settlement", "status": "implemented-tested", "location": "src/authority.ts (atomic temp+rename write, one-generation .bak, resilient load)", "tests": "test/persistence.test.ts (atomic-write integrity, corrupt-primary falls back to backup, all-copies-unreadable refuses start, pending lock survives restart, lagging authority catches up from certificate) + test/protocol.test.ts (recovery)", "deployment": "live: each authority on a durable Fly volume (SETU_STATE_DIR=/data); verified state survives a machine restart on 2026-07-26", "reviewed": false, "limitations": "single-writer per authority; no multi-node DB failover; RPO ~= last write, RTO ~= machine restart; volume snapshot/backup policy not yet configured (§20 mostly met)" },
-    { "name": "Server-enforced delegated budgets (cap, total, expiry, revocation, identity)", "layer": "delegated-authority", "status": "implemented-tested", "location": "src/authority.ts, src/agents/allowance.ts", "tests": "test/protocol.test.ts (full policy matrix)", "deployment": "live", "reviewed": false, "limitations": "per-service limits, categories, frequency limits, approval thresholds not yet implemented (§8 subset)" },
-    { "name": "Policy simulation (dry-run a delegation)", "layer": "delegated-authority", "status": "planned", "location": "", "tests": "", "deployment": "", "reviewed": false, "limitations": "§9 not built" },
-    { "name": "Principal approval workflow / thresholds", "layer": "delegated-authority", "status": "planned", "location": "", "tests": "", "deployment": "", "reviewed": false, "limitations": "§10 not built" },
-    { "name": "x402-style payment gateway (402 -> pay -> verify -> deliver)", "layer": "service-commerce", "status": "partial", "location": "packages/setu-gateway", "tests": "packages/setu-gateway/demo.ts (live demo, not asserted)", "deployment": "live: setu-gateway.fly.dev", "reviewed": false, "limitations": "follows the x402 request/response shape with a Setu scheme; NOT verified against official x402 conformance fixtures; single-use invoice, in-memory" },
-    { "name": "Service registry + machine-readable discovery", "layer": "service-commerce", "status": "implemented-tested", "location": "src/service/registry.ts", "tests": "test/e2e.test.ts", "deployment": "in-repo module", "reviewed": false, "limitations": "discovery by capability/price/region; health-based ranking and full trust-state filtering (§12) partial; not yet exposed as a network API/MCP tool" },
-    { "name": "End-to-end agent-purchase journey", "layer": "service-commerce", "status": "implemented-tested", "location": "test/e2e.test.ts (ties src/authority, delegation, service, registry, purchase, audit)", "tests": "test/e2e.test.ts (5 tests incl. denied/replay/wrong-recipient)", "deployment": "in-process integration", "reviewed": false, "limitations": "runs against in-process authorities; a single guided UI over the live network is a later increment (§6)" },
-    { "name": "Client-side purchase decision (policy pre-check + decision object)", "layer": "delegated-authority", "status": "implemented-tested", "location": "src/agent/purchase.ts", "tests": "test/e2e.test.ts", "deployment": "in-repo module", "reviewed": false, "limitations": "client-side convenience; the AUTHORITIES remain the real enforcer (§6)" },
-    { "name": "Audit trail (append-only event timeline)", "layer": "operations", "status": "implemented-tested", "location": "src/audit.ts", "tests": "test/e2e.test.ts (asserts the ordered timeline)", "deployment": "in-repo module", "reviewed": false, "limitations": "in-memory; not yet persisted or surfaced in a UI" },
-    { "name": "Formal signed Quote object + validation", "layer": "service-commerce", "status": "implemented-tested", "location": "src/service/quote.ts, src/service/service.ts", "tests": "test/e2e.test.ts (sign/verify, expiry, task-binding)", "deployment": "in-repo module", "reviewed": false, "limitations": "the live gateway still uses the simpler invoice+ref form; migrating it to the signed Quote object is a later increment" },
-    { "name": "Settlement/fulfilment separation", "layer": "service-commerce", "status": "implemented-tested", "location": "src/service/service.ts (Settlement vs Fulfilment states)", "tests": "test/e2e.test.ts (settled-but-not-fulfilled, replay, wrong-recipient)", "deployment": "in-repo module", "reviewed": false, "limitations": "refund/compensation flows (§16) NOT supported — stated, not faked" },
-    { "name": "MCP server (agent tools)", "layer": "agent-interop", "status": "implemented-unreviewed", "location": "packages/setu-mcp", "tests": "packages/setu-mcp/smoke-test.ts (live smoke, not asserted)", "deployment": "runnable; not registry-listed", "reviewed": false, "limitations": "read/write tool split and idempotency keys (§28) partial" },
-    { "name": "A2A agent card (discovery descriptor)", "layer": "agent-interop", "status": "partial", "location": "packages/setu-gateway", "tests": "", "deployment": "live: setu-gateway.fly.dev/.well-known/agent-card.json", "reviewed": false, "limitations": "A2A-schema-shaped; not conformance-tested; not full A2A protocol" },
-    { "name": "Client SDK (setu-pay)", "layer": "agent-interop", "status": "implemented-unreviewed", "location": "packages/setu-pay", "tests": "packages/setu-pay/example.ts (live, not asserted)", "deployment": "in-repo", "reviewed": false, "limitations": "no version pinning/compat policy (§26)" },
-    { "name": "OpenAI-compatible tools + review bridge", "layer": "agent-interop", "status": "planned", "location": "", "tests": "", "deployment": "", "reviewed": false, "limitations": "§29/§42 not built; needs an OpenAI API key" },
-    { "name": "Authority key management", "layer": "operations", "status": "implemented-unreviewed", "location": "deploy/, Fly secrets", "tests": "", "deployment": "live: private keys are per-app Fly secrets, public keys only in repo", "reviewed": false, "limitations": "no HSM; no rotation mechanism (§25/§17); NOT HSM-protected" },
-    { "name": "Authority rotation / upgrade governance", "layer": "operations", "status": "planned", "location": "", "tests": "", "deployment": "", "reviewed": false, "limitations": "§17/§26 — likely needs a governance consensus layer; not built" },
-    { "name": "Operator admin + status + incident management", "layer": "operations", "status": "planned", "location": "", "tests": "", "deployment": "", "reviewed": false, "limitations": "§34/§38/§39 not built" },
-    { "name": "Issuance/redemption records + supply reconciliation", "layer": "operations", "status": "partial", "location": "src/demo-issuer.ts, CREDITS.md, economy (fixed supply)", "tests": "", "deployment": "economy conserves supply", "reviewed": false, "limitations": "closed-loop Credit model exists; automated reconciliation + alerts (§35/§36) not built; the /admin/fund faucet is an open testnet issuance endpoint" },
-    { "name": "Resident agent economy (rule-based + budget-capped AI brain)", "layer": "simulation", "status": "demonstration", "location": "packages/setu-economy", "tests": "", "deployment": "live: setu-economy.fly.dev; AI brain armed (claude-haiku-4-5, $60/mo hard cap + per-IP 15 / global 300 daily commission limits)", "reviewed": false, "limitations": "a controlled test environment; proves nothing macroeconomic; economy state + budget/rate counters persist to a durable Fly volume (SETU_STATE_DIR) with atomic writes and are restored on boot, and monthTick() makes the $60/mo cap a true monthly ledger (shipped + verified across a restart, Cycle 3); the economy service has a hermetic smoke test but no deep protocol-level coverage; deterministic replay seeds (§31) not built" },
-    { "name": "Protocol test suite", "layer": "testing", "status": "implemented-tested", "location": "test/protocol.test.ts", "tests": "26 tests, `npm test` (node --test): 15 protocol + 5 e2e + 5 persistence + 1 economy smoke", "deployment": "n/a", "reviewed": false, "limitations": "partition/catch-up (§18) and faucet-integrity now covered; property-based tests, clock-skew, and full integration harnesses (§45) still to add; the resident economy service has a hermetic smoke test only" },
-    { "name": "Benchmarks (throughput, chained-spend, WAN)", "layer": "testing", "status": "partial", "location": "src/bench.ts, src/chain-bench.ts, src/chain-bench-wan.ts", "tests": "reproducible scripts", "deployment": "laptop + live WAN observation", "reviewed": false, "limitations": "no production-scale/persistent-DB load test; full metric matrix (§21) not captured" },
-    { "name": "Threat model", "layer": "operations", "status": "implemented-unreviewed", "location": "THREAT_MODEL.md", "tests": "each defended property links to a named test in test/", "deployment": "n/a", "reviewed": false, "limitations": "written 2026-08-02 (§24); states the single-operator trust model, the no-anti-entropy and no-lock-cancellation gaps, clock-skew, key handling without HSM or rotation, and the public faucet. Not externally reviewed." }
+    {
+      "name": "Quorum-signed settlement (consensusless, FastPay-family)",
+      "layer": "settlement",
+      "status": "implemented-tested",
+      "location": "src/authority.ts, src/client.ts",
+      "tests": "test/protocol.test.ts (happy-path, quorum)",
+      "deployment": "live: setu-auth-1..4.fly.dev",
+      "reviewed": false,
+      "limitations": "durable Fly volume (SETU_STATE_DIR=/data); single operator"
+    },
+    {
+      "name": "Double-spend prevention (first-seen lock, quorum overlap)",
+      "layer": "settlement",
+      "status": "implemented-tested",
+      "location": "src/authority.ts",
+      "tests": "test/protocol.test.ts",
+      "deployment": "live",
+      "reviewed": false,
+      "limitations": ""
+    },
+    {
+      "name": "Sequence monotonicity / replay prevention",
+      "layer": "settlement",
+      "status": "implemented-tested",
+      "location": "src/authority.ts",
+      "tests": "test/protocol.test.ts",
+      "deployment": "live",
+      "reviewed": false,
+      "limitations": ""
+    },
+    {
+      "name": "Byzantine tolerance (f=1 of 4)",
+      "layer": "settlement",
+      "status": "implemented-tested",
+      "location": "src/authority.ts (EquivocatingAuthority)",
+      "tests": "test/protocol.test.ts",
+      "deployment": "in-process test + live network demo",
+      "reviewed": false,
+      "limitations": "partition/catch-up now tested (\u00a718); clock-skew on delegation expiry still untested"
+    },
+    {
+      "name": "Value conservation (no minting via transfers)",
+      "layer": "settlement",
+      "status": "implemented-tested",
+      "location": "src/authority.ts",
+      "tests": "test/protocol.test.ts",
+      "deployment": "live",
+      "reviewed": false,
+      "limitations": ""
+    },
+    {
+      "name": "Offline certificate (receipt) verification",
+      "layer": "service-commerce",
+      "status": "implemented-tested",
+      "location": "src/certificates.ts, packages/setu-pay",
+      "tests": "test/protocol.test.ts",
+      "deployment": "live (SDK)",
+      "reviewed": false,
+      "limitations": ""
+    },
+    {
+      "name": "Idempotent settlement",
+      "layer": "settlement",
+      "status": "implemented-tested",
+      "location": "src/authority.ts",
+      "tests": "test/protocol.test.ts",
+      "deployment": "live",
+      "reviewed": false,
+      "limitations": ""
+    },
+    {
+      "name": "Persistence + crash-safe recovery (durable)",
+      "layer": "settlement",
+      "status": "implemented-tested",
+      "location": "src/authority.ts (atomic temp+rename write, one-generation .bak, resilient load)",
+      "tests": "test/persistence.test.ts (atomic-write integrity, corrupt-primary falls back to backup, all-copies-unreadable refuses start, pending lock survives restart, lagging authority catches up from certificate) + test/protocol.test.ts (recovery)",
+      "deployment": "live: each authority on a durable Fly volume (SETU_STATE_DIR=/data); verified state survives a machine restart on 2026-07-26",
+      "reviewed": false,
+      "limitations": "single-writer per authority; no multi-node DB failover; RPO ~= last write, RTO ~= machine restart; volume snapshot/backup policy not yet configured (\u00a720 mostly met)"
+    },
+    {
+      "name": "Server-enforced delegated budgets (cap, total, expiry, revocation, identity)",
+      "layer": "delegated-authority",
+      "status": "implemented-tested",
+      "location": "src/authority.ts, src/agents/allowance.ts",
+      "tests": "test/protocol.test.ts (full policy matrix) + src/demo-allowance-live.ts (`npm run demo:allowance:live`, runs against the LIVE four-region network and prints each authority's verbatim refusal)",
+      "deployment": "live: enforced by setu-auth-1..4; runnable end-to-end by anyone",
+      "reviewed": false,
+      "limitations": "per-service limits, categories, frequency limits, approval thresholds not yet implemented (\u00a78 subset)"
+    },
+    {
+      "name": "Policy simulation (dry-run a delegation)",
+      "layer": "delegated-authority",
+      "status": "planned",
+      "location": "",
+      "tests": "",
+      "deployment": "",
+      "reviewed": false,
+      "limitations": "\u00a79 not built"
+    },
+    {
+      "name": "Principal approval workflow / thresholds",
+      "layer": "delegated-authority",
+      "status": "planned",
+      "location": "",
+      "tests": "",
+      "deployment": "",
+      "reviewed": false,
+      "limitations": "\u00a710 not built"
+    },
+    {
+      "name": "x402-style payment gateway (402 -> pay -> verify -> deliver)",
+      "layer": "service-commerce",
+      "status": "partial",
+      "location": "packages/setu-gateway",
+      "tests": "packages/setu-gateway/demo.ts (live demo, not asserted)",
+      "deployment": "live: setu-gateway.fly.dev",
+      "reviewed": false,
+      "limitations": "follows the x402 request/response shape with a Setu scheme; NOT verified against official x402 conformance fixtures; single-use invoice, in-memory"
+    },
+    {
+      "name": "Service registry + machine-readable discovery",
+      "layer": "service-commerce",
+      "status": "implemented-tested",
+      "location": "src/service/registry.ts",
+      "tests": "test/e2e.test.ts",
+      "deployment": "in-repo module",
+      "reviewed": false,
+      "limitations": "discovery by capability/price/region; health-based ranking and full trust-state filtering (\u00a712) partial; not yet exposed as a network API/MCP tool"
+    },
+    {
+      "name": "End-to-end agent-purchase journey",
+      "layer": "service-commerce",
+      "status": "implemented-tested",
+      "location": "test/e2e.test.ts (ties src/authority, delegation, service, registry, purchase, audit)",
+      "tests": "test/e2e.test.ts (5 tests incl. denied/replay/wrong-recipient)",
+      "deployment": "in-process integration",
+      "reviewed": false,
+      "limitations": "runs against in-process authorities; a single guided UI over the live network is a later increment (\u00a76)"
+    },
+    {
+      "name": "Client-side purchase decision (policy pre-check + decision object)",
+      "layer": "delegated-authority",
+      "status": "implemented-tested",
+      "location": "src/agent/purchase.ts",
+      "tests": "test/e2e.test.ts",
+      "deployment": "in-repo module",
+      "reviewed": false,
+      "limitations": "client-side convenience; the AUTHORITIES remain the real enforcer (\u00a76)"
+    },
+    {
+      "name": "Audit trail (append-only event timeline)",
+      "layer": "operations",
+      "status": "implemented-tested",
+      "location": "src/audit.ts",
+      "tests": "test/e2e.test.ts (asserts the ordered timeline)",
+      "deployment": "in-repo module",
+      "reviewed": false,
+      "limitations": "in-memory; not yet persisted or surfaced in a UI"
+    },
+    {
+      "name": "Formal signed Quote object + validation",
+      "layer": "service-commerce",
+      "status": "implemented-tested",
+      "location": "src/service/quote.ts, src/service/service.ts",
+      "tests": "test/e2e.test.ts (sign/verify, expiry, task-binding)",
+      "deployment": "in-repo module",
+      "reviewed": false,
+      "limitations": "the live gateway still uses the simpler invoice+ref form; migrating it to the signed Quote object is a later increment"
+    },
+    {
+      "name": "Settlement/fulfilment separation",
+      "layer": "service-commerce",
+      "status": "implemented-tested",
+      "location": "src/service/service.ts (Settlement vs Fulfilment states)",
+      "tests": "test/e2e.test.ts (settled-but-not-fulfilled, replay, wrong-recipient)",
+      "deployment": "in-repo module",
+      "reviewed": false,
+      "limitations": "refund/compensation flows (\u00a716) NOT supported \u2014 stated, not faked"
+    },
+    {
+      "name": "MCP server (agent tools)",
+      "layer": "agent-interop",
+      "status": "implemented-unreviewed",
+      "location": "packages/setu-mcp",
+      "tests": "packages/setu-mcp/smoke-test.ts (live smoke, not asserted)",
+      "deployment": "runnable; not registry-listed",
+      "reviewed": false,
+      "limitations": "read/write tool split and idempotency keys (\u00a728) partial"
+    },
+    {
+      "name": "A2A agent card (discovery descriptor)",
+      "layer": "agent-interop",
+      "status": "partial",
+      "location": "packages/setu-gateway",
+      "tests": "",
+      "deployment": "live: setu-gateway.fly.dev/.well-known/agent-card.json",
+      "reviewed": false,
+      "limitations": "A2A-schema-shaped; not conformance-tested; not full A2A protocol"
+    },
+    {
+      "name": "Client SDK (setu-pay)",
+      "layer": "agent-interop",
+      "status": "implemented-unreviewed",
+      "location": "packages/setu-pay",
+      "tests": "packages/setu-pay/example.ts (live, not asserted)",
+      "deployment": "in-repo",
+      "reviewed": false,
+      "limitations": "no version pinning/compat policy (\u00a726)"
+    },
+    {
+      "name": "OpenAI-compatible tools + review bridge",
+      "layer": "agent-interop",
+      "status": "planned",
+      "location": "",
+      "tests": "",
+      "deployment": "",
+      "reviewed": false,
+      "limitations": "\u00a729/\u00a742 not built; needs an OpenAI API key"
+    },
+    {
+      "name": "Authority key management",
+      "layer": "operations",
+      "status": "implemented-unreviewed",
+      "location": "deploy/, Fly secrets",
+      "tests": "",
+      "deployment": "live: private keys are per-app Fly secrets, public keys only in repo",
+      "reviewed": false,
+      "limitations": "no HSM; no rotation mechanism (\u00a725/\u00a717); NOT HSM-protected"
+    },
+    {
+      "name": "Authority rotation / upgrade governance",
+      "layer": "operations",
+      "status": "planned",
+      "location": "",
+      "tests": "",
+      "deployment": "",
+      "reviewed": false,
+      "limitations": "\u00a717/\u00a726 \u2014 likely needs a governance consensus layer; not built"
+    },
+    {
+      "name": "Operator admin + status + incident management",
+      "layer": "operations",
+      "status": "planned",
+      "location": "",
+      "tests": "",
+      "deployment": "",
+      "reviewed": false,
+      "limitations": "\u00a734/\u00a738/\u00a739 not built"
+    },
+    {
+      "name": "Issuance/redemption records + supply reconciliation",
+      "layer": "operations",
+      "status": "partial",
+      "location": "src/demo-issuer.ts, CREDITS.md, economy (fixed supply)",
+      "tests": "",
+      "deployment": "economy conserves supply",
+      "reviewed": false,
+      "limitations": "closed-loop Credit model exists; automated reconciliation + alerts (\u00a735/\u00a736) not built; the /admin/fund faucet is an open testnet issuance endpoint"
+    },
+    {
+      "name": "Resident agent economy (rule-based + budget-capped AI brain)",
+      "layer": "simulation",
+      "status": "demonstration",
+      "location": "packages/setu-economy",
+      "tests": "",
+      "deployment": "live: setu-economy.fly.dev; AI brain armed (claude-haiku-4-5, $60/mo hard cap + per-IP 15 / global 300 daily commission limits)",
+      "reviewed": false,
+      "limitations": "a controlled test environment; proves nothing macroeconomic; economy state + budget/rate counters persist to a durable Fly volume (SETU_STATE_DIR) with atomic writes and are restored on boot, and monthTick() makes the $60/mo cap a true monthly ledger (shipped + verified across a restart, Cycle 3); the economy service has a hermetic smoke test but no deep protocol-level coverage; deterministic replay seeds (\u00a731) not built"
+    },
+    {
+      "name": "Protocol test suite",
+      "layer": "testing",
+      "status": "implemented-tested",
+      "location": "test/protocol.test.ts",
+      "tests": "26 tests, `npm test` (node --test): 15 protocol + 5 e2e + 5 persistence + 1 economy smoke",
+      "deployment": "n/a",
+      "reviewed": false,
+      "limitations": "partition/catch-up (\u00a718) and faucet-integrity now covered; property-based tests, clock-skew, and full integration harnesses (\u00a745) still to add; the resident economy service has a hermetic smoke test only"
+    },
+    {
+      "name": "Benchmarks (throughput, chained-spend, WAN)",
+      "layer": "testing",
+      "status": "partial",
+      "location": "src/bench.ts, src/chain-bench.ts, src/chain-bench-wan.ts",
+      "tests": "reproducible scripts",
+      "deployment": "laptop + live WAN observation",
+      "reviewed": false,
+      "limitations": "no production-scale/persistent-DB load test; full metric matrix (\u00a721) not captured"
+    },
+    {
+      "name": "Threat model",
+      "layer": "operations",
+      "status": "implemented-unreviewed",
+      "location": "THREAT_MODEL.md",
+      "tests": "each defended property links to a named test in test/",
+      "deployment": "n/a",
+      "reviewed": false,
+      "limitations": "written 2026-08-02 (\u00a724); states the single-operator trust model, the no-anti-entropy and no-lock-cancellation gaps, clock-skew, key handling without HSM or rotation, and the public faucet. Not externally reviewed."
+    }
   ]
 }

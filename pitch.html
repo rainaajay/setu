@@ -67,7 +67,9 @@
   token</strong>. Its defining feature for agents: <strong>spending limits enforced by the network itself</strong>.
   A person signs one credential — "this agent may spend 10, at most 2 per payment, until Friday" — and the
   settlement layer, not the merchant, guarantees it cannot be exceeded, double-spent, or used after it is
-  revoked.</p>
+  revoked. <strong>You can run this yourself against the live network</strong> —
+  <code>npm run demo:allowance:live</code> prints each authority's own refusal, verbatim: over the
+  per-payment cap, wrong agent, cumulative ceiling reached, and after revocation.</p>
 
   <p><strong>You can run this yourself, right now.</strong> <code>npm run demo:allowance:live</code> signs one
   credential against the live four-region network and prints the authorities' own verdicts:</p>

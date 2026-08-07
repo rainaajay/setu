@@ -1,103 +1,109 @@
 // Server-enforced spending limits, proven against the LIVE four-region network.
 //
-// This is the one property no card rail, database or on-chain payment standard offers: the limit is
-// enforced by the SETTLEMENT LAYER, not by the merchant, the client, or an app's business logic. A
-// principal signs one credential — "this agent may spend N, at most M per payment, until T" — and the
-// authorities themselves refuse anything outside it.
-//
-// Everything printed below is the authorities' own answer over the wire. Nothing is simulated: the
-// refusals are the reason the payments do not exist, not a message this script made up.
+// This is the one property no card rail, database or on-chain payment gives you: a spending limit
+// that the SETTLEMENT LAYER itself refuses to exceed. Not the merchant's code, not the agent's
+// good behaviour — the authorities. Everything printed below is the authorities' own answer, quoted
+// verbatim, from four machines in London, Frankfurt, Washington and Singapore.
 //
 //   npm run demo:allowance:live
 //
-// Read-only in spirit: it funds a throwaway principal from the public testnet faucet and makes a
-// handful of ordinary payments. It performs no destructive or state-corrupting action.
+// It uses only ordinary client traffic (faucet + orders), exactly what the browser wallet does.
 import { readFileSync } from 'node:fs';
-import { generateKeyPair, canonical, sign, type KeyPair } from './crypto.ts';
+import { generateKeyPair, canonical, sign } from './crypto.ts';
 import { signAllowance, signRevoke } from './agents/allowance.ts';
 import type { TransferOrder } from './types.ts';
 
-const committee = JSON.parse(readFileSync(new URL('../committee-prod.json', import.meta.url), 'utf8'));
-const URLS: string[] = committee.members.map((m: { url: string }) => m.url);
-const QUORUM: number = committee.quorum;
-const short = (s: string) => s.slice(16, 26) + '…';
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const committee = JSON.parse(readFileSync('committee-prod.json', 'utf8')) as {
+  quorum: number;
+  members: { name: string; url: string }[];
+};
+const URLS = committee.members.map((m) => m.url);
+const QUORUM = committee.quorum;
 
-async function post(url: string, body: unknown): Promise<any> {
+const post = async (url: string, body: unknown) => {
   try {
-    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });
-    return await r.json();
-  } catch (e) { return { ok: false, error: (e as Error).message }; }
-}
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000),
+    });
+    return (await r.json()) as { ok: boolean; error?: string; signature?: unknown };
+  } catch (e) {
+    return { ok: false, error: `unreachable (${(e as Error).message})` };
+  }
+};
 const broadcast = (body: unknown) => Promise.all(URLS.map((u) => post(u, body)));
 
-// One delegated payment attempt. Returns the authorities' verdict, verbatim.
-async function attempt(agent: KeyPair, _principal: string, delegation: string, amount: number, seq: number) {
-  // The SENDER of a delegated order is the AGENT (authority.ts requires order.sender === d.agent);
-  // the delegation record is what tells the authorities whose balance to debit.
-  const order: TransferOrder = { sender: agent.publicKey, recipient: generateKeyPair().publicKey, amount, seq, delegation };
-  const signedOrder = { order, senderSignature: sign(agent.privateKey, canonical(order)) };
-  const responses = await broadcast({ type: 'order', signedOrder });
-  const sigs = responses.filter((r) => r?.ok).map((r) => r.signature);
-  const errors = [...new Set(responses.filter((r) => !r?.ok).map((r) => r.error))];
-  if (sigs.length >= QUORUM) {
-    const certificate = { order, senderSignature: signedOrder.senderSignature, authoritySignatures: sigs.slice(0, QUORUM) };
-    const settles = await broadcast({ type: 'certificate', certificate });
-    return { allowed: true, settledOn: settles.filter((s) => s?.ok).length, errors };
-  }
-  return { allowed: false, signatures: sigs.length, errors };
+// Print what each authority said, in its own words. This is the point of the demo: the refusal is
+// the network's, not this script's.
+function report(label: string, responses: { ok: boolean; error?: string }[]) {
+  const ok = responses.filter((r) => r.ok).length;
+  const verdict = ok >= QUORUM ? `ALLOWED (${ok}/4 signed)` : `REFUSED (${ok}/4 signed — quorum is ${QUORUM})`;
+  console.log(`\n${label}\n  → ${verdict}`);
+  responses.forEach((r, i) => {
+    console.log(`     ${committee.members[i].name.padEnd(7)} ${r.ok ? 'signed' : `refused: "${r.error ?? 'no reason given'}"`}`);
+  });
 }
 
-console.log('Setu — server-enforced spending limits, against the live network');
-console.log(URLS.join('  '), `\nquorum ${QUORUM} of ${URLS.length}\n`);
+async function main() {
+  console.log('Setu — server-enforced spending limits, on the live network');
+  console.log(`Authorities: ${URLS.join(', ')}  (quorum ${QUORUM} of ${URLS.length})`);
 
-const principal = generateKeyPair();
-const agent = generateKeyPair();
-console.log(`principal ${short(principal.publicKey)}   agent ${short(agent.publicKey)}`);
+  const principal = generateKeyPair(); // the human's key
+  const agent = generateKeyPair();     // the agent that will spend on their behalf
+  const merchant = generateKeyPair().publicKey;
 
-// Fund the principal from the public testnet faucet.
-await Promise.all(URLS.map((u) => post(`${u}/admin/fund`, { address: principal.publicKey, amount: 500 })));
-await sleep(1200);
-console.log(`funded the principal with 500 test Credits\n`);
+  console.log('\n[1/6] Funding the principal from the public testnet faucet…');
+  await Promise.all(URLS.map((u) =>
+    fetch(u + '/admin/fund', { method: 'POST', body: JSON.stringify({ address: principal.publicKey, amount: 100 }), signal: AbortSignal.timeout(15_000) }).catch(() => null),
+  ));
 
-// The credential. This is the whole product idea in one object.
-const DELEG = 'live-' + Date.now();
-const grant = signAllowance(principal, {
-  id: DELEG,
-  agent: agent.publicKey,
-  total: 10,           // the agent may spend 10 in total
-  maxPerPayment: 3,    // and never more than 3 in one payment
-  expiresAt: new Date(Date.now() + 120_000).toISOString(), // for the next 2 minutes
-});
-const reg = await broadcast({ type: 'register-delegation', signedAllowance: grant });
-console.log(`delegation registered on ${reg.filter((r) => r?.ok).length}/${URLS.length} authorities:`);
-console.log(`   "this agent may spend 10 in total, at most 3 per payment, for the next 2 minutes"\n`);
+  // The grant: the whole policy, signed once by the human.
+  const id = 'demo-' + Date.now().toString(36);
+  const expiresAt = new Date(Date.now() + 60_000).toISOString();
+  const signed = signAllowance(principal, { id, agent: agent.publicKey, total: 10, maxPerPayment: 2, expiresAt });
+  console.log(`\n[2/6] The human signs ONE credential: "agent may spend 10 total, at most 2 per payment, until ${expiresAt}"`);
+  const reg = await broadcast({ type: 'register-delegation', signedAllowance: signed });
+  console.log(`      registered on ${reg.filter((r) => r.ok).length}/4 authorities`);
 
-let seq = 0;
-const show = (label: string, r: any) => {
-  const verdict = r.allowed
-    ? `ALLOWED  — settled on ${r.settledOn}/${URLS.length}`
-    : `REFUSED  — ${r.signatures}/${QUORUM} signatures; the authorities said: ${r.errors.join(' | ')}`;
-  console.log(`${label.padEnd(46)} ${verdict}`);
-};
+  // The agent spends the principal's money under the delegation. A payment is only complete when the
+  // quorum certificate is formed AND settled — the delegation's sequence advances on settlement, so
+  // the demo must do the full round trip, not just collect signatures.
+  let seq = 0;
+  const spend = async (amount: number, signer = agent) => {
+    const order: TransferOrder = { sender: signer.publicKey, recipient: merchant, amount, seq, delegation: id };
+    const signedOrder = { order, senderSignature: sign(signer.privateKey, canonical(order)) };
+    const res = await broadcast({ type: 'order', signedOrder }) as { ok: boolean; error?: string; signature?: { authority: string; signature: string } }[];
+    const sigs = res.filter((r) => r.ok && r.signature).map((r) => r.signature!);
+    if (sigs.length >= QUORUM) {
+      await broadcast({ type: 'certificate', certificate: { order, senderSignature: signedOrder.senderSignature, authoritySignatures: sigs.slice(0, QUORUM) } });
+      seq += 1;
+    }
+    return res;
+  };
 
-console.log('--- what the network permits, and what it refuses -------------------------');
-show('pay 3 (at the per-payment cap)', await attempt(agent, principal.publicKey, DELEG, 3, seq)); seq += 1;
-await sleep(700);
-show('pay 4 (ABOVE the 3-per-payment cap)', await attempt(agent, principal.publicKey, DELEG, 4, seq));
-await sleep(700);
-show('pay 3 again (running total now 6)', await attempt(agent, principal.publicKey, DELEG, 3, seq)); seq += 1;
-await sleep(700);
-show('pay 3 again (running total now 9)', await attempt(agent, principal.publicKey, DELEG, 3, seq)); seq += 1;
-await sleep(700);
-show('pay 3 more (would exceed the total of 10)', await attempt(agent, principal.publicKey, DELEG, 3, seq));
+  console.log('\n[3/6] The agent tries to spend 5 — OVER the 2-per-payment cap.');
+  report('      order: 5 Credits (cap is 2)', await spend(5));
 
-// Revocation: the principal cancels the credential, and the network stops honouring it at once.
-await sleep(700);
-const rev = await broadcast({ type: 'revoke-delegation', signedRevoke: signRevoke(principal, DELEG) });
-console.log(`\nprincipal revoked the delegation on ${rev.filter((r) => r?.ok).length}/${URLS.length} authorities`);
-await sleep(700);
-show('pay 1 after revocation', await attempt(agent, principal.publicKey, DELEG, 1, seq));
+  console.log('\n[4/6] A DIFFERENT agent tries to use the same credential (identity, not just the budget).');
+  report('      order signed by an impostor', await spend(1, generateKeyPair()));
 
-console.log(`\nEvery refusal above came from the authorities, not from this script.`);
-console.log(`The agent held a valid key the whole time — the limit is the network's, not the app's.`);
+  console.log('\n[5/6] The agent now spends within the rules, until the cumulative ceiling of 10 stops it.');
+  for (let i = 1; i <= 7; i++) {
+    const res = await spend(2);
+    const ok = res.filter((r) => r.ok).length;
+    console.log(`      payment ${i} of 2 Credits (${i * 2} of 10 total) → ${ok >= QUORUM ? 'ALLOWED' : `REFUSED: "${res.find((r) => !r.ok)?.error}"`}`);
+    if (ok < QUORUM) break; // the cumulative ceiling stopped it — that is the point
+  }
+
+  console.log('\n[6/6] The human revokes the credential.');
+  const rev = await broadcast({ type: 'revoke-delegation', signedRevoke: signRevoke(principal, id) });
+  console.log(`      revoked on ${rev.filter((r) => r.ok).length}/4 authorities`);
+  report('      order after revocation: 1 Credit', await spend(1));
+
+  console.log('\nEvery refusal above came from the authorities themselves, over the public internet.');
+  console.log('No merchant code and no client-side check was involved: the limit is the settlement layer.');
+}
+
+main().catch((e) => { console.error(e); process.exit(1); });
