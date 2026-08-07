@@ -151,9 +151,16 @@ async function poll() {
 
   const b = state.brain || {};
   const hasThought = state.thoughts && state.thoughts.length;
-  const recentThought = hasThought && ageOf(state.thoughts[0].at) < 600000; // <10 min
+  // Age of the newest thought. "deciding on a slow cadence" had no UPPER bound, so a feed frozen for
+  // hours still read as normal operation — say how stale it actually is instead.
+  const thoughtAge = hasThought ? ageOf(state.thoughts[0].at) : Infinity;
+  const recentThought = thoughtAge < 600000; // <10 min
   $('brain').textContent = b.active
-    ? (recentThought ? `· 🧠 thinking with ${b.model}` : `· 🧠 brain armed (${b.model}) — deciding on a slow cadence`)
+    ? (recentThought
+        ? `· 🧠 thinking with ${b.model}`
+        : thoughtAge < 3600000
+        ? `· 🧠 brain armed (${b.model}) — deciding on a slow cadence`
+        : `· 🧠 brain armed (${b.model}) — but no new thought for ${Math.round(thoughtAge / 3600000)}h`)
     : (b.armed ? '· 🧠 brain paused (budget reached)' : '· 🧠 brain off');
   const bf = $('brainfeed');
   if (hasThought) {

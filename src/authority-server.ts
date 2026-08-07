@@ -90,7 +90,12 @@ const server = createServer(async (req, res) => {
   try {
     let payload: unknown;
     if (req.method === 'GET' && url.pathname === '/health') {
-      payload = { ok: true, name };
+      // `ok` must be able to be FALSE, or a monitor reads 4/4 straight through a real problem. This
+      // authority reports itself degraded when the last anti-entropy round found it behind a peer —
+      // the one failure it can detect about itself. It still serves traffic: a behind authority is
+      // useful (it signs and settles), it just does not hold the whole ledger.
+      const s = authority.stats();
+      payload = { ok: lastBehindBy === 0, name, behindBy: lastBehindBy, sumSeq: s.sumSeq, certsHeld: s.certsHeld, booted: s.booted };
     } else if (req.method === 'GET' && url.pathname === '/account') {
       payload = authority.accountInfo(url.searchParams.get('address') ?? '');
     } else if (req.method === 'GET' && url.pathname === '/committee') {
@@ -169,6 +174,9 @@ const server = createServer(async (req, res) => {
 const SYNC_INTERVAL_MS = Number(process.env.SETU_SYNC_INTERVAL_MS ?? 30_000);
 const SYNC_SENDERS_PER_ROUND = Number(process.env.SETU_SYNC_SENDERS ?? 25); // bounded work per round
 const peers = committee.members.filter((m) => m.name !== name && m.url);
+// How far behind the best peer we were at the last sync round — surfaced on /health so a monitor can
+// see divergence. 0 means the last round found no peer ahead of us.
+let lastBehindBy = 0;
 
 async function syncOnce(): Promise<void> {
   if (!peers.length) return;
@@ -178,6 +186,9 @@ async function syncOnce(): Promise<void> {
     const r = await fetch(`${peer.url}/digest`, { signal: AbortSignal.timeout(10_000) });
     senders = ((await r.json()) as { senders?: { sender: string; nextSeq: number }[] }).senders ?? [];
   } catch { return; }
+
+  // Record how far behind this peer we are, so /health can report it (a constant ok:true hid this).
+  lastBehindBy = senders.reduce((sum, x) => sum + Math.max(0, x.nextSeq - authority.accountInfo(x.sender).nextSeq), 0);
 
   // Only the senders where the peer is AHEAD of us — those are the certificates we missed.
   const behind = senders
