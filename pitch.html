@@ -63,11 +63,20 @@
 
   <h2><span class="n">02</span>What Setu is</h2>
   <p>A settlement engine that moves value between accounts in <strong>one network round trip</strong> — about
-  about a second across four regions (measured 2026-08-02; ~40&nbsp;ms of that is the authority itself) — with <strong>no per-transaction fee, no blockchain, and no
+  a second across four regions (measured 2026-08-02; ~40&nbsp;ms of that is the authority itself) — with <strong>no per-transaction fee, no blockchain, and no
   token</strong>. Its defining feature for agents: <strong>spending limits enforced by the network itself</strong>.
   A person signs one credential — "this agent may spend 10, at most 2 per payment, until Friday" — and the
   settlement layer, not the merchant, guarantees it cannot be exceeded, double-spent, or used after it is
   revoked.</p>
+
+  <p><strong>Who runs it, plainly.</strong> The four authorities are four Fly.io apps operated by a
+  single person, from one codebase with related credentials. That is <strong>replication, not
+  decentralisation</strong>: the 3-of-4 quorum protects against one authority failing or misbehaving,
+  but it does not make the operator untrusted — one party can still change all four. Setu is today a
+  <strong>single-operator research network</strong>, and the properties below should be read that way.
+  Independent operators, key rotation and an external review are prerequisites before any real value
+  moves. The full list of what is and is not defended is in
+  <a href="https://github.com/rainaajay/setu/blob/main/THREAT_MODEL.md">THREAT_MODEL.md</a>.</p>
   <p>Setu is <strong>infrastructure, not money</strong>. It moves claims on <em>your</em> settlement asset —
   a regulated stablecoin, tokenised deposit, or closed-loop credit — so it slots beneath a regulated issuer
   rather than trying to become one.</p>
@@ -77,10 +86,10 @@
     <div class="stat"><b>~1 s</b><span>payment finality, four regions, measured from a browser 2026-08-02 (the authority answers in ~40 ms; the rest is TLS + queueing on 256 MB machines)</span></div>
     <div class="stat"><b>£0</b><span>per-transaction network fee</span></div>
     <div class="stat"><b>3-of-4</b><span>signatures make a payment final; one node can fail or misbehave</span></div>
-    <div class="stat"><b>live</b><span>network, wallet, and a running agent economy</span></div>
+    <div class="stat"><b>live</b><span>network, browser wallet, and a continuously running demo economy</span></div>
   </div>
   <p>Not slideware. A four-region network runs now; a <a href="/">browser wallet</a> settles a real payment in
-  in about a second; a <a href="/economy.html">resident economy of agents</a> is paying each other for
+  about a second; a <a href="/economy.html">resident economy</a> of the builder's own apps is paying service agents for
   services on it as you read this; and any agent can pay a live <strong>x402</strong> endpoint today, or run the
   Setu <strong>MCP</strong> server locally to give itself a wallet. Spending-limit enforcement, offline receipt
   verification, and "spend money you just received" have all been measured and demonstrated.</p>
