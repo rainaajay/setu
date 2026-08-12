@@ -71,9 +71,13 @@ The resident economy (`packages/setu-economy`) is a demonstration and is treated
    certificate has been evicted by **every** peer, the gap can never close — and because the sender
    keeps transacting, **every later payment widens it**. This is progressive, unbounded divergence,
    not a fixed historical artefact.
-   Measured: auth-1 was 14,759 behind on 2026-08-02 and **24,815 behind on 2026-08-07** — roughly
-   +2,000/day, all of it accumulated *after* durable retention shipped. Any authority that falls
-   behind and is not repaired within the retention window (~2 days) is permanently unrepairable.
+   Measured: auth-1 was 14,759 behind on 2026-08-02, 24,815 on 2026-08-07 and **31,455 on
+   2026-08-12** — roughly +2,000/day, all of it accumulated *after* durable retention shipped.
+   **The testbed ledger was reset on 2026-08-12** (every authority pointed at a fresh state
+   directory; the old data is untouched on the volumes) because that gap had no repair path left.
+   The underlying limit is unchanged: any authority that falls behind and is not repaired within the
+   retention window (~2 days) is permanently unrepairable, and the reset does not fix that — it only
+   cleared the accumulated damage.
    Anti-entropy therefore heals a **short** outage; it cannot heal a long one, and it cannot rewrite
    history. Two things would change this: retaining certificates for longer (disk is cheap — the logs
    are already 30–39 MB) and, more fundamentally, a state-transfer path so a hopelessly-behind
