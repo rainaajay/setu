@@ -61,6 +61,32 @@ test('economy service smoke test (offline, no boot)', async () => {
     const g400 = await fetch(base + '/guest-demand', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) });
     assert.equal(g400.status, 400);
 
+    // Supplier registration makes US call a stranger's URL, so it must never accept an internal one —
+    // otherwise it is an SSRF proxy into our own infrastructure. Also reject non-https and bad fields.
+    const reg = (body: unknown) => fetch(base + '/supplier/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const payout = 'A'.repeat(60);
+    for (const endpoint of [
+      'http://example.com/work',            // not https
+      'https://localhost/work',
+      'https://127.0.0.1/work',
+      'https://10.0.0.5/work',
+      'https://192.168.1.10/work',
+      'https://169.254.169.254/latest/meta-data', // cloud metadata
+      'https://[::1]/work',
+      'not-a-url',
+    ]) {
+      const r = await reg({ name: 'probe', service: 'written report', price: 2, endpoint, payout });
+      assert.equal(r.status, 400, `endpoint must be refused: ${endpoint}`);
+    }
+    // an unknown service is refused
+    assert.equal((await reg({ name: 'probe', service: 'hacking', price: 2, endpoint: 'https://example.com/w', payout })).status, 400);
+    // a well-formed registration is accepted
+    const good = await reg({ name: 'probe', service: 'written report', price: 2, endpoint: 'https://example.com/work', payout });
+    assert.equal(good.status, 200);
+    assert.equal((await good.json()).ok, true);
+    // and the same endpoint cannot be registered twice
+    assert.equal((await reg({ name: 'probe2', service: 'written report', price: 2, endpoint: 'https://example.com/work', payout })).status, 409);
+
     // unknown path -> 404
     const nf = await fetch(base + '/bogus');
     assert.equal(nf.status, 404);

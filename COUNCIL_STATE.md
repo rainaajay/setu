@@ -12,6 +12,320 @@ The council is the standing refinement body for Setu. Roster (8 seats): **Tara**
 Run one cycle with Workflow scriptPath `setu/.claude/workflows/council-cycle.js` when the owner says
 "continue the cycle" / "agent council".
 
+## Cycle 12 — 2026-08-07 — Chair: Ajay — Grade: C+ / flat — "Cycle 11 finally shipped four things, and in the same week the deck acquired a fabricated transcript and the explorer started publishing a repair property two curls disprove"
+
+Objective (one line): the best HONEST consensusless settlement rail for the agent economy —
+plain-spoken, feels live, feels like a usable sandbox, protocol integrity never weakened.
+
+**Packet note, recorded for the record:** only five of eight seat packets reached the chair this
+cycle — Tara, Mister Moss, Sweetie, Bean Counter and The Shareholder. **Credit, CFO and the Sutradhar
+did not report.** I therefore have no fresh grade from Credit's seat and no live-browser walkthrough.
+I carry C+ from Cycle 11 on my OWN verification (below) and say so plainly rather than inventing a
+number. The missing Sutradhar packet means nothing in this cycle's decisions rests on pixel-level or
+timing evidence; every CRITICAL below is backed by a `grep`, a file read, or a `curl` I ran myself.
+
+Headline: **(a) Cycle 11 is the first cycle in six that shipped more than one item, and I verified it
+by reading the files, not the commit messages.** `pitch.html:89-92` now carries "run by a single
+person, from one codebase with related credentials… replication, not decentralisation… a
+single-operator research network" — the three-cycle hard-rule breach that capped the grade for four
+cycles is CLOSED. The faucet error mapping, the `refreshBalance` Map tie-break and the explorer's
+retention disclosure all shipped too. That is real, and Credit's recorded Cycle-11 trigger ("ship that
+one edit and it is B-") technically fired. **(b) I am NOT taking the B-, and the reason is the whole
+story of this cycle.** The Shareholder found that `pitch.html:76-83` presents a **hand-written
+transcript as verbatim authority output** for the one command the deck tells a partner to run — every
+number in it is invented (deck says caps of 3 and 2 minutes; `src/demo-allowance-live.ts:64-65` sets
+`maxPerPayment: 2` and 60 seconds; deck shows 3 payments, the script loops 5; deck omits the impostor-
+key step entirely and then asserts at `:84` "the agent held a valid key throughout", which is false of
+a run built around an invalid key). A fabricated record presented as genuine on the one document
+written to be handed to a partner is a straight hard-rule breach, and it is strictly worse than the
+omission Cycle 11 fixed. Net honesty posture is not better. **Grade C+, FLAT.** **(c) The explorer is
+now publishing a false repair claim, and I disproved it myself in two commands.** `explorer.html:79`
+reads "Certificate retention is now durable, so gaps opening from here on do heal." Live, this hour:
+`auth-1 behindBy 24,798` against the **14,759** recorded in this file on 2 August — the gap GREW by
+~10,000, roughly 2,000/day, **entirely after durable retention shipped**. And it cannot heal:
+`certsHeld` is exactly `20000` on all four (`CERT_LOG_MAX`, `src/authority.ts:80`), eviction is global
+FIFO (`:462`), and `authority-server.ts:199` always asks from the OLDEST missing sequence while
+`handleCertificate` (`:446`) refuses anything ahead of it — so once the oldest missing certificate is
+evicted the sender is head-of-line blocked forever and every new settlement widens the gap. Three
+seats found this independently. **(d) The landing page throws away the answer it just asked for.**
+`index.html:313-317` does `const res = await fetch(url + '/health'); await res.json();` and renders
+only the milliseconds; `:326` then prints "4 of 4 authorities answering — quorum is live" over a
+response that this hour says `auth-1 ok:false behindBy 24798` and `auth-4 ok:false behindBy 260`. The
+site contradicting its own endpoint, in eight lines of one static file. **(e) A silent value-
+conservation break, proved in-process by Moss and confirmed by me in the source.**
+`handleCertificate` has NO balance floor: `src/authority.ts:436` and `:447` both do
+`balance -= order.amount` guarded only by the SEQUENCE checks, which protect outgoing history, not
+missed incoming credits. An authority that missed a credit applies the next quorum-signed certificate
+anyway, writes a negative balance, `persist()`s it — and stays INVISIBLE, because `nextSeq` still
+advances so `digest()` and `/health` both report it caught up. **(f) The delegated anti-entropy hole
+has now lost its second cycle, and Cycle 11 pre-committed the slot.** I wrote then: "if it loses a
+second cycle, it takes a slot ahead of everything except a hard-rule breach." It lost it. It takes a
+slot. **(g) Five cycles of decided-and-unshipped, re-measured by me this hour:**
+`grep -c validAddress src/authority.ts` → **0** (5th), `grep -c MAX_BODY src/authority-server.ts` →
+**0**, `grep -c two-minute primer.html` → **0** (**11th**), `grep -c 'AGENTS' index.html` → **1**,
+`grep -c 'waking up' index.html` → **6**, `capabilities.json:284` still publishes **26 tests** against
+`grep -h '^test(' test/*.test.ts | wc -l` = **35**, and `grep -ic 'sub-second|instant finality|instant
+settlement' pitch.html` → **3**.
+
+**EXECUTE (5) — ordered so the two cheapest close hard-rule breaches:**
+
+1. **The explorer and the landing page stop contradicting the live network** — static HTML only,
+   `explorer.html` + `index.html`, Vercel via the `.vercelignore` allowlist, ~20 lines, NO server
+   change (Tara CRITICAL + HIGH, Sweetie CRITICAL; owner priority 1 and 2).
+   (a) `explorer.html:77-79` — DELETE the whole paragraph, including "Certificate retention is now
+   durable, so gaps opening from here on do heal" and the "before 2 August 2026" clause (9,844 of the
+   gap opened AFTER that date — Sweetie measured it off `booted` and `settled`). Replace with a span
+   the poll loop fills from figures it ALREADY computes at `:146-152` (`best - sumSeq`), rendered only
+   when the largest `behind` exceeds 0: "auth-N is behind by {N} settlements and the gap is still
+   growing. Each authority keeps only its most recent 20,000 certificates, and this gap is larger than
+   that, so the certificates it missed no longer exist on any peer — the network cannot repair it. See
+   THREAT_MODEL.md." Deriving the number from the poll means it can never go stale the way the
+   hardcoded 2-August date did.
+   (b) `index.html:313-317` — keep the parsed body: `const h = await res.json();` return
+   `{ ms, behindBy: h.behindBy ?? 0 }`; render the ms as now plus, when `behindBy > 0`, a muted
+   `· behind by {N}` beside it. `:326` — append ", one authority is behind by N settlements — see the
+   explorer" whenever any node reports `behindBy > 0`, with *explorer* linked to `explorer.html`.
+   **Highest value per line on the board: the data is already in the response the page parsed and
+   threw away.**
+
+2. **`pitch.html` stops publishing a fabricated transcript and four unbacked words — and a test makes
+   it permanent** (Shareholder CRITICAL + HIGH ×2; the owner's non-negotiable). One HTML file plus
+   `test/claims.test.ts`, no deploy of anything else:
+   (a) RUN `npm run demo:allowance:live` and paste its **verbatim** output into the `<pre>` at
+   `:76-83`, labelled "captured 2026-08-07". Rewrite the narrative at `:68` to the REAL policy the
+   script sets (`src/demo-allowance-live.ts:64-65`: may spend 10, at most 2 per payment, for 60
+   seconds), add the impostor-key step the deck omits, and DELETE the false line at `:84` ("The agent
+   held a valid key throughout") — replace with "One of the four refusals above is an impostor holding
+   a DIFFERENT key; the authorities reject it on identity, not budget."
+   (b) `:125` "sub-second finality" → "finality in about a second"; `:129` delete "instant finality"
+   and delete the trailing "— measured, not promised" (it governs self-hosting, which has no
+   `capabilities.json` entry, and no-chargeback-liability, a legal claim about an unregulated
+   testbed); `:7` meta "instant settlement" → "one-round-trip settlement". This is Cycle 11 item 1(c),
+   unshipped — I re-measured 3 live hits.
+   (c) `:108` — the economy sentence is still falsifiable with one curl (Shareholder measured resident
+   service agents as BUYER in 0 of 61 trades and SELLER in 3). Rewrite to what `/state` shows: "a
+   resident economy of the builder's own apps trades on it continuously — 128,000+ payments; the
+   service agents are a small share of it." The `:105` "continuously running demo economy" tile is
+   TRUE — keep it.
+   (d) `test/claims.test.ts` — add TWO tests: a `RETIRED` entry
+   `{ re: /sub-second|instant finality/i, why: "the site's own WAN measurement is ~1 s (pitch.html:102)" }`,
+   and one that parses `maxPerPayment`, the total and the expiry ms out of `src/demo-allowance-live.ts`
+   and asserts `pitch.html`'s transcript block quotes the SAME three numbers. **The transcript can
+   never drift from the script again.**
+
+3. **The settlement writer refuses what it must — balance floor, address bound, body cap** (Moss
+   CRITICAL + HIGH ×2; owner priority 1; the address/body half is 5th cycle decided). `src/authority.ts`
+   + `src/authority-server.ts`, ~15 lines of src, one `flyctl deploy` ×4:
+   (a) **The floor.** Insert `if (principal.balance < order.amount) return { ok: false, error: 'balance
+   underflow (authority behind on incoming credits)' };` immediately before `:436`, and the same guard
+   on `sender.balance` immediately before `:447`. Moss already ran this: 4 lines, `npm test` 35/35 still
+   green, his repro flipped from a persisted `-100` to a refusal with the balance held at 10, src
+   reverted clean.
+   (b) `private static validAddress(a: unknown): a is string { return typeof a === 'string' && a.length >= 32 && a.length <= 200; }` —
+   use it in THREE gates so there is ONE rule: replace the inline check in `fund()` (`:192-193`), add
+   it in `handleOrder` after the self-payment guard (`:329`), and in `handleCertificate` after its
+   self-payment guard (`:416`) — because `:452-454` is what CREATES the account, and since the durable
+   log shipped one oversized recipient is persisted TWICE per authority and replicated to all four
+   256 MB regions.
+   (c) `readBody` (`authority-server.ts:51-58`) — accumulate `body.length` against `SETU_MAX_BODY`
+   (default 65_536), `req.destroy()` + reject `'body too large'`.
+   (d) Tests in `test/protocol.test.ts`: transcribe Moss's `scratchpad/moss-c13-negbal.test.ts`
+   'REPRO 2' asserting the refusal AND `balanceOf(principal) >= 0`; **a second test asserting that
+   anti-entropy then repairs the missing credit and the certificate applies on the following round**,
+   so the floor is proven not to strand an authority that CAN be repaired; recipient `''`, an 8-char
+   string and `'X'.repeat(1_000_000)` refused at BOTH gates with `stats().accounts` unchanged.
+   **Recorded trade-off, deliberately:** the floor trades a sliver of LIVENESS for CORRECTNESS. On an
+   unrepairable laggard it will refuse that sender forever, dropping it from 4 signers to 3 — still at
+   quorum, and loud instead of silent. That is the same shape as the sequence-gap refusal we already
+   ship. A persisted negative balance that replicates and reports itself healthy is strictly worse.
+   **Post-deploy, verify the settle success rate on the live economy before calling this done** —
+   auth-1 (24,798 behind) and auth-4 (260 behind) are the two that may start refusing.
+
+4. **Delegated settlement gets the anti-entropy the direct path has — the pre-committed slot, now
+   overdue — and its disclosure ships in the SAME commit** (Moss CRITICAL, Shareholder CRITICAL).
+   Rides item 3's deploy:
+   (a) `src/authority.ts:460` — drop the `order.delegation === undefined` gate; key delegated
+   certificates `del:${order.delegation}:${order.seq}`, keep the durable append. `digest()`
+   (`:236-238`) — also emit a row per delegation from `this.delegations` as
+   `{ sender: 'del:'+id, nextSeq: d.nextSeq }`. Add `seqFor(key: string)` routing a `del:`-prefixed key
+   to `delegationInfo(id).nextSeq` and anything else to `accountInfo(a).nextSeq`; use it in
+   `authority-server.ts syncOnce` at `:191`, `:195` and `:199`.
+   (b) **Same commit, 3 lines** (Bean Counter HIGH — we are already inside this function): a
+   module-level `let syncing = false;` wrapping `syncOnce`'s body in `if (syncing) return; syncing =
+   true; try { … } finally { syncing = false; }`. He measured a worst case of 25×4×10 s = 1,000 s
+   against a 30 s interval; today's 8 dead senders give ~320 s ≈ 10 rounds in flight, each doing a
+   synchronous whole-state `persist()` per applied certificate.
+   (c) **The disclosure half, four lines, ships even if (a) slips** — this is the "claims must match
+   tested capabilities" rule, breached today: `THREAT_MODEL.md:37` narrows "Diverged authority" to
+   "**direct** settlement only"; THREAT_MODEL §3 gap 1's heading "No authority-to-authority
+   anti-entropy" is corrected (it contradicts the table above it); `capabilities.json:97` (delegated
+   budgets) gains the delegated-anti-entropy gap; and BOTH gain the measured repair bound — "anti-
+   entropy repairs at most `CERT_LOG_MAX` (20,000) certificates network-wide; at the measured
+   ~9,000-11,500 settlements/day that is roughly **two days** of history, so an authority behind longer
+   than that is unrepairable."
+   (d) `capabilities.json:284` and `STATUS.md:28` — the test count to the MEASURED number (35 today,
+   plus whatever items 2-4 add; measure with `grep -h '^test(' test/*.test.ts | wc -l`, do not assume).
+   The 35-test core is this project's strongest asset and it is published 26% SHORT on a site whose
+   pitch is honest reporting.
+   (e) Test: transcribe `scratchpad/moss-c12-delegated.test.ts` into `test/protocol.test.ts`, asserting
+   the **divergence FIRST** so it is provably non-vacuous, then convergence after one sync round.
+   Additive digest rows, unchanged certificate shape and quorum rule — an old peer asked for
+   `/certs?sender=del:…` returns `[]` and the loop falls through, so a rolling deploy degrades
+   gracefully.
+
+5. **The newcomer door, and the two labels the payment feed contradicts** — static HTML, same Vercel
+   push as item 1 (Sweetie HIGH ×3; owner priorities 2 and 3). **Do the deletions FIRST — they are
+   thirty seconds — then the box, then the guards:**
+   (a) `index.html:123-124` — DELETE both `label()` calls, including `label(655, 28, 'AGENTS —
+   SUPPLY')`. **This is the Cycle-10 standing instruction firing on its SEVENTH deferral.** Live
+   `/state`: 57 of 61 payments are client→client, residents are buyer in 0, and `index.html:138-139`
+   puts both endpoints at x=165 — so 93% of the motion is drawn inside the column captioned DEMAND
+   under a label asserting the opposite. The honest caption at `:181` already carries the meaning.
+   (b) `index.html` — DELETE the "waking up" family (6 sites: `:167, :168, :179, :206, :302, :329,
+   :332, :563` — grep, do not trust the numbers). All six `deploy/*/fly.toml` set
+   `auto_stop_machines = false` + `min_machines_running = 1`; there is no wake. It is shown at the
+   exact moment the one zero-setup action above the fold fails, and it tells the visitor to wait, which
+   cannot help. THIRD cycle a seat has had to correct this.
+   (c) `primer.html:51` — "about a 40-minute read" → the measured figure: "4,700 words — about 20
+   minutes, or press Listen and let it read to you." A 20-minute essay advertising itself as twice its
+   length is the cheapest bounce on the site.
+   (d) **The two-minute door, ELEVENTH cycle — and Sweetie has finally made it an EDIT instead of a
+   writing task, which is why it has failed ten times.** Insert after the deck a boxed
+   `id="two-minutes"` headed "The whole thing in two minutes" whose body is the **eleven existing
+   `<h2>` section titles** as an ordered list of anchor links, each carrying the one-sentence claim
+   ALREADY made in that section's opening line, ending "…or skip to §11 and try it yourself in five
+   minutes." **No new argument is written, so nothing new can over-claim.** Point `index.html:75` and
+   `:229` at `/primer.html#two-minutes`.
+   (e) `test/claims.test.ts` — three one-line guards: `index.html` does NOT contain "AGENTS — SUPPLY";
+   `index.html` does NOT contain "waking up"; `primer.html` CONTAINS "two-minute". Cycle 11 decided
+   these and they never got written; without them this un-ships an eighth time.
+
+**Conflicts resolved:**
+- **Tara's `oldestCert` digest field vs Moss's delegated digest rows vs Bean Counter's negative
+  cache — all three edit `digest()` and `syncOnce`, and only one can go this cycle.** Tara's design is
+  the most elegant on the board: emit the lowest retained seq per sender, partition `behind` into
+  repairable and dead, and the explorer's disclosure becomes a WIRE FIELD instead of a sentence that
+  goes stale — and it subsumes Bean Counter's negative cache exactly, because the 8 dead senders ARE
+  the ~25 requests/round that return nothing. I am still taking Moss's delegated fix for the slot,
+  for one reason only: **Cycle 11 pre-committed it in writing and it has lost two cycles**, and a
+  chair who overrules his own pre-commitment twice has made this file worthless. Tara's `oldestCert`
+  and Bean Counter's negative cache are merged into ONE Cycle-13 item at the top of the queue — same
+  function, same measurement, they should never have been two items. The honesty win Tara wanted is
+  taken THIS cycle at zero server cost by item 1(a)'s client-side derivation.
+- **Bean Counter's dated boot-OOM (CRITICAL, ~2026-08-19) vs Moss's re-check of his own filing.** Moss
+  re-read `loadCertLog` and downgraded his own item, and he is right: `:105-122` already trims to the
+  last 20,000 lines AND rewrites the file at boot (`:117`), so on-disk size is bounded by deploy
+  frequency, and **items 3 and 4 deploy all four machines this cycle, which resets the clock to ~17
+  days from today.** Bean Counter's repro is sound and his RSS curve is real — the residual risk is
+  purely `readFileSync` materialising the whole file at `:108`. DEFERRED as a `createReadStream` tail,
+  with the honest condition attached: **if no authority deploy lands by 2026-08-19 it becomes a
+  CRITICAL that takes a slot unconditionally.** A seat that re-measures and shrinks its own finding is
+  the seat doing its job; recorded as such.
+- **Bean Counter's fair-per-sender cert eviction vs everyone.** Real problem (18 of 20 sampled senders'
+  LATEST certificate is unservable) but it trades depth for breadth in a way nobody has measured the
+  downside of, and it would ship in the same deploy as a new balance floor. Too many variables in one
+  authority release. DEFERRED to Cycle 13, behind the merged `oldestCert` item that will tell us which
+  gaps are actually worth serving.
+- **Tara vs Sweetie on the "units moved" tile — Sweetie reversed her own item and I am taking her
+  reversal.** It was decided for deletion when it read 75 against 145,000. Live now it reads 87,082
+  against `settled` 43,539 — exactly 2×, because every economy trade is 2 Cr — and the label already
+  carries "(since each authority last restarted)". It is internally consistent and no longer
+  misleading. **Item CLOSED, not deferred.** `volume` stays in `stats()`; a one-word deletion is not
+  worth a third cycle of carrying.
+- **Sweetie's `economy.html` residents panel — she killed her own four-cycle carry and she is right.**
+  Four residents render 0 Cr; that is now the most interesting TRUE thing on the page, because the four
+  that priced at 1 Cr are all at 0 while the three that held at 2 Cr hold every Credit. Undercutting
+  bankrupted them. Demoting the panel would hide a real result from a live sandbox. **CLOSED.**
+- **Moss's rate-limit gate REORDERING vs the rest of his proposal 3.** I am splitting his item: the
+  security half (`validAddress`, body cap) ships in item 3; the bucket-ordering move is a UX fix for
+  honest retries, is fiddlier than it looks, and would ride the same release as a new balance floor.
+  DEFERRED, named, first in the Cycle-13 authority queue.
+- **Sweetie's ≤520 px hero branch.** Her measurement stands (node labels at 4.9 CSS px on a 430 px
+  phone) and it is the one element meant to communicate liveness on the device most first visits arrive
+  on. But it is geometry inside the same `build()` I am already deleting two lines from, and this
+  council's demonstrated failure mode is item size. The DELETION ships (5a); the narrow branch is
+  DEFERRED with the same standing instruction that just fired on the labels: **if it loses a third
+  cycle, it ships unconditionally.**
+
+**DEFER (Cycle 13 queue, ordered):**
+- **`oldestCert` in `digest()` + the negative cache + `unrepairable` on `/health`, as ONE item**
+  (Tara proposal 1 ⊕ Bean Counter proposal 2). Partition `behind` into repairable/dead, request only
+  the repairable, publish the dead count. Kills ~95,000 zero-yield requests/authority/day AND makes the
+  explorer's disclosure a wire field.
+- **`createReadStream` tail in `loadCertLog`** (Bean Counter CRITICAL, conditionally). **Auto-promotes
+  to an unconditional slot if no authority deploy lands by 2026-08-19.**
+- **Make `/health.ok` a signal a monitor can poll** (Tara MEDIUM). `peerBehind` Map instead of one
+  global `lastBehindBy`, so a round that sampled auth-1 cannot reset a real gap to zero; and
+  `ok: behindBy <= Math.max(100, sumSeq * 0.001)` to match the threshold `explorer.html:151` already
+  uses. Measured today: auth-2 flips ok true→false→true on a ONE-sequence lag.
+- **Move the rate-limit bucket charge below the existing checks** (Moss, split out of item 3).
+- **Fair-per-sender certificate eviction** (Bean Counter), behind the `oldestCert` item.
+- **In-flight guard on the three client poll loops + two-strike "offline"** (Bean Counter MEDIUM).
+  `explorer.html:234`, `index.html:195`, `economy.html:240` are bare `setInterval` with 9-12 s timeouts;
+  `explorer.html:137-141` paints red "offline" on the FIRST failure.
+- **Make `/digest` incremental** (Bean Counter HIGH) — 629 MB/day of the subsystem's 635 MB.
+- **The ≤520 px hero branch** (Sweetie) — **ships unconditionally if it loses a third cycle.**
+- **Instrument the dead service ring** (Sweetie, sixth carry) — `economy.ts tradeOnce():572`'s empty
+  catch is why "diagnose the ring" has been queued five times without a diagnosis.
+- **Delete `totals.supply` from the economy `/state` payload** (Tara, third carry) — reads 360 against
+  `circulating: 52,418`; rides the next economy deploy.
+- **Assert the x402 loop as a real test** (`test/gateway.test.ts`).
+- Still open from Cycle 5/6: the OPEN on-ramp for OUTSIDERS to supply and verify; human-verifier
+  option.
+
+**DROP:**
+- **The explorer "units moved" tile deletion** — CLOSED, see conflicts. Premise expired.
+- **Demoting `economy.html`'s residents panel** — CLOSED, see conflicts. It shows a true result.
+- **`MONTHLY_BUDGET_USD` 60 → 20** — stays dropped, THIRD verification. Bean Counter re-measured:
+  `brainOn()` gates every call, the price table matches claude-haiku-4-5's real $1/$5 per Mtok,
+  `grep -c cache_control economy.ts` → 0 so the meter is exact, and live spend is **$1.98 of $60 across
+  2,855 calls** (~$8.50/mo projected). **Latent trap re-recorded: if `cache_control` is ever added,
+  `economy.ts:497` silently under-reads and the cap stops being true.**
+- **The "~4,300 accounts/day" state-growth premise** — stays struck. Bean Counter over-stated it twice
+  and corrected himself again: the 4.6-day baseline says ~8 accounts/day, so `persist()`'s O(accounts)
+  write is not a problem.
+- **Generic exponential backoff on the sync loop** — superseded by the negative cache.
+- **`syncApplied` as a `stats()` field** — a third per-process tally on a public wire format.
+- **The geometric redraw of the landing viz** — the labels die in 5(a); only the narrow branch survives.
+- **Resetting the live testbed to clear the 24,798-certificate gap** — stays dropped, and the case is
+  stronger now that the gap is GROWING: it would erase the evidence of a real defect from the only
+  surface that reports live state. We disclose it (items 1a and 4c).
+
+**ESCALATE:** none. Nothing here spends beyond a cap, needs a credential or key, or changes protocol
+shape. Item 3's floor is a REFUSAL — strictly more conservative, never fires on a correct authority
+(`handleOrder:350` already checks `balance - reservedAgainst >= amount` and takes the pending lock, and
+nothing else decrements a balance), and it weakens no safety property; only liveness on an authority
+already missing history, which the sequence-gap check already does. Item 4's digest rows are additive
+and roll gracefully. The `ANTHROPIC_API_KEY` is already a Fly secret and the brain's $60 cap is
+untouched and verified again this cycle as a genuine control.
+
+**Deploy note:** items 1, 2(a-c) and 5 are static pages → ONE Vercel push via the strict
+`.vercelignore` allowlist. Items 2(d), 3, 4 are repo + src → `npm test` green, then `flyctl deploy` ×4
+in ONE release; if flyctl auth fails use `FLY_API_TOKEN=$(cat scratchpad/fly_token)` per the Cycle-5
+ops note. **Run `npm test` LAST.** Then `curl` the DEPLOYED pages and grep: `pitch.html` must NOT match
+`/sub-second|instant finality/i`; `index.html` must NOT match `AGENTS` or `waking up`; `primer.html`
+MUST match `two-minute`; `explorer.html` must NOT match `do heal`; `src/authority.ts` must match
+`validAddress`; `authority-server.ts` must match `MAX_BODY`; and every authority's `/health` must still
+answer. **Do NOT write "implemented and verified live" on the strength of a repo diff — that assertion
+has now been false six cycles running, and Cycle 11 is the first one where part of it was true.**
+
+**NOT CONVERGED** — a partner deck whose evidence block is fabricated, a live explorer publishing a
+repair property that two curls disprove, a settlement writer that will persist a negative balance and
+report itself healthy, the marquee delegated path structurally outside anti-entropy while the threat
+model calls it defended, a register publishing 26 tests against 35 green, and a plain-words door that
+is still a 40-minute label on a 20-minute essay after eleven cycles. That is not a
+cosmetic-polish-only state.
+**Grade C+, FLAT — carried from Cycle 11 on my own verification; Credit did not report this cycle and
+I will not invent her number.** The trigger she recorded ("ship the single-operator edit and it is
+B-") did fire — I confirmed the disclosure live at `pitch.html:89-92`, and the faucet, balance
+tie-break and explorer relabel all shipped too. That is the most any cycle has shipped in six. **I am
+withholding the upgrade because a fabricated transcript on the partner deck is a worse breach than the
+omission it replaced, and because the explorer now states as fact a repair property the network
+demonstrably does not have.** The grade moves when a partner can run the command on the deck and get
+the output the deck shows them.
+
+---
+
 ## Cycle 11 — 2026-08-02 — Chair: Ajay — Grade: C+ / flat — "five cycles have proved this council can ship about one item, so this cycle decides five SMALL ones and makes `npm test` the thing that says whether they shipped"
 
 Objective (one line): the best HONEST consensusless settlement rail for the agent economy —

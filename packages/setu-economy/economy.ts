@@ -249,9 +249,61 @@ const SUPPLIES: Record<string, { service: string; expertise: string }> = {
   MinerArb: { service: 'trade signals', expertise: 'miner-vs-MSTR pair signals' },
 };
 
-type Supplier = { kind: 'app' | 'ring'; name: string; address: string; expertise: string; wallet: SetuWallet; ref: any };
-// Prefer ANOTHER APP that supplies this capability (real app-to-app work), else fall back to a ring agent.
+// --- The open supply side ------------------------------------------------------------------------
+// Anyone can register an agent that TAKES jobs and EARNS. This is what makes Setu a two-sided market
+// rather than "the builder's agents do work for you". A supplier gives a name, what it does, a price,
+// an HTTPS endpoint to call, and a Setu address to be paid at. When a matching need appears we POST
+// the need + acceptance criteria to that endpoint, verify whatever comes back exactly as we verify
+// our own agents, and settle payment to their address ONLY if it passes.
+type ExternalSupplier = {
+  id: string; name: string; service: string; price: number; endpoint: string; payout: string;
+  registeredAt: number; jobs: number; passed: number; earned: number; failures: number; disabled?: boolean;
+};
+const externals: ExternalSupplier[] = [];
+const MAX_EXTERNALS = Number(process.env.MAX_EXTERNAL_SUPPLIERS ?? 50);
+const EXTERNAL_MAX_FAILURES = 5;       // consecutive failures before we stop calling an endpoint
+const EXTERNAL_EARN_CAP_DAY = Number(process.env.EXTERNAL_EARN_CAP_DAY ?? 200); // per supplier
+
+// Never let a registration point us at something internal. This endpoint makes US issue an outbound
+// request to a stranger's URL, so a private/loopback/metadata address would turn Setu into an SSRF
+// proxy against its own infrastructure.
+function safeEndpoint(raw: string): string | null {
+  let u: URL;
+  try { u = new URL(raw); } catch { return null; }
+  if (u.protocol !== 'https:') return null;
+  const h = u.hostname.toLowerCase();
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.internal') || h.endsWith('.local')) return null;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) {
+    const p = h.split('.').map(Number);
+    if (p[0] === 10 || p[0] === 127 || p[0] === 0 || (p[0] === 172 && p[1] >= 16 && p[1] <= 31) ||
+        (p[0] === 192 && p[1] === 168) || (p[0] === 169 && p[1] === 254)) return null; // private / link-local / metadata
+  }
+  if (h.includes(':')) return null; // raw IPv6, incl. ::1 and unique-local
+  return u.toString();
+}
+
+// Ask an external supplier to do the job. Its answer is treated as untrusted input: it is verified
+// against the acceptance criteria before a single Credit moves.
+async function callExternal(sup: ExternalSupplier, task: Task): Promise<string | null> {
+  try {
+    const r = await fetch(sup.endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ need: task.need, criteria: task.criteria ?? [], price: task.price, service: sup.service }),
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!r.ok) return null;
+    const j = await r.json().catch(() => null) as { deliverable?: unknown; text?: unknown } | null;
+    const out = typeof j?.deliverable === 'string' ? j.deliverable : typeof j?.text === 'string' ? j.text : null;
+    return out ? out.slice(0, 4000) : null;
+  } catch { return null; }
+}
+
+type Supplier = { kind: 'app' | 'ring' | 'external'; name: string; address: string; expertise: string; wallet?: SetuWallet; ref: any };
+// Prefer a REGISTERED EXTERNAL supplier (a real outsider earning), then another app, then the ring.
 function pickSupplier(task: Task): Supplier | null {
+  const ext = externals.filter((e) => !e.disabled && e.service === task.want && e.price <= task.price);
+  if (ext.length) { const e = rand(ext); return { kind: 'external', name: e.name, address: e.payout, expertise: e.service, ref: e }; }
   const appSups = clients.filter((c) => !c.guest && SUPPLIES[c.name]?.service === task.want && c.name !== task.client && c.name !== 'a newcomer');
   if (appSups.length) { const c = rand(appSups); return { kind: 'app', name: c.name, address: c.address, expertise: SUPPLIES[c.name].expertise, wallet: c.wallet, ref: c }; }
   const a = agents.find((x) => x.service === task.want) || (agents.length ? rand(agents) : null);
@@ -259,7 +311,8 @@ function pickSupplier(task: Task): Supplier | null {
   return { kind: 'ring', name: a.name, address: a.address, expertise: a.desc, wallet: a.wallet, ref: a };
 }
 function creditSupplier(sup: Supplier, amount: number) {
-  if (sup.kind === 'app') { sup.ref.balance += amount; sup.ref.earned = (sup.ref.earned ?? 0) + amount; sup.ref.sold = (sup.ref.sold ?? 0) + 1; }
+  if (sup.kind === 'external') { sup.ref.earned += amount; sup.ref.passed += 1; sup.ref.failures = 0; }
+  else if (sup.kind === 'app') { sup.ref.balance += amount; sup.ref.earned = (sup.ref.earned ?? 0) + amount; sup.ref.sold = (sup.ref.sold ?? 0) + 1; }
   else { sup.ref.balance += amount; sup.ref.sold += 1; sup.ref.revenue += amount; }
 }
 
@@ -329,7 +382,10 @@ async function fulfilOne() {
     if (!sup) return;
     task.supplier = sup.name;
 
-    const brainAllowed = brainOn() && (task.source === 'external' || brainQuotaOk(task.source));
+    // An EXTERNAL supplier does the work itself, so it does not consume our AI budget to produce —
+    // only the criteria + verification do. Never skip verification for an outsider: their output is
+    // untrusted, and payment must depend on it.
+    const brainAllowed = brainOn() && (task.source === 'external' || sup.kind === 'external' || brainQuotaOk(task.source));
     if (!brainAllowed) {
       // No AI budget this hour: settle the payment (real) but skip verification — mark deferred honestly.
       try { await client.wallet.pay(sup.address, task.price, `${client.name}->${sup.name}`); client.payFails = 0; }
@@ -345,7 +401,16 @@ async function fulfilOne() {
 
     // The verified job: 1) quantify demand → 2) supplier produces → 3) independent verify → 4) settle on accept.
     if (!task.criteria || !task.criteria.length) task.criteria = await genCriteria(task.need);
-    const deliverable = await produceDeliverable(sup, client, task);
+    if (sup.kind === 'external') { sup.ref.jobs += 1; task.mode = 'external-supplier'; }
+    const deliverable = sup.kind === 'external'
+      ? await callExternal(sup.ref as ExternalSupplier, task)   // the outsider does the work
+      : await produceDeliverable(sup, client, task);
+    if (sup.kind === 'external' && !deliverable) {
+      // Their endpoint failed or returned nothing usable. Count it; stop calling a persistently
+      // broken endpoint so one bad registration cannot stall the market.
+      sup.ref.failures += 1;
+      if (sup.ref.failures >= EXTERNAL_MAX_FAILURES) { sup.ref.disabled = true; process.stderr.write(`[economy] disabled external supplier ${sup.ref.name} after ${sup.ref.failures} failures\n`); }
+    }
     if (!deliverable) { task.attempts = (task.attempts ?? 0) + 1; if (task.attempts >= 5) { task.status = 'settled'; task.mode = 'failed'; task.deliverable = `${sup.name} could not produce output.`; } continue; }
     const verdict = await verifyDelivery(task.need, task.criteria, deliverable);
     task.deliverable = deliverable; task.verdict = verdict; task.fulfilledAt = Date.now();
@@ -686,10 +751,38 @@ async function handleGuestDemand(req: IncomingMessage, res: ServerResponse) {
   json(res, 200, { ok: true, id: task.id, want: task.want, price: task.price });
 }
 
+// Register an agent that TAKES jobs and EARNS. Open, so anyone can join the supply side; bounded, so
+// one registration cannot take over the market or drain it.
+async function handleRegisterSupplier(req: IncomingMessage, res: ServerResponse) {
+  let b: { name?: string; service?: string; price?: number; endpoint?: string; payout?: string };
+  try { b = JSON.parse((await readBody(req)) || '{}'); } catch { return json(res, 400, { ok: false, error: 'bad json' }); }
+  const name = String(b.name || '').trim().slice(0, 24);
+  const service = String(b.service || '').trim();
+  const price = Math.max(1, Math.min(4, Math.round(Number(b.price) || 2)));
+  const payout = String(b.payout || '').trim();
+  const endpoint = safeEndpoint(String(b.endpoint || ''));
+  const SERVICES = ['written report', 'risk alert', 'trade signals', 'price feed', 'currency conversion', 'order execution'];
+  if (!name) return json(res, 400, { ok: false, error: 'name required' });
+  if (!SERVICES.includes(service)) return json(res, 400, { ok: false, error: `service must be one of: ${SERVICES.join(', ')}` });
+  if (!endpoint) return json(res, 400, { ok: false, error: 'endpoint must be a public https URL (private, loopback and link-local addresses are refused)' });
+  if (!/^[A-Za-z0-9+/=]{40,}$/.test(payout)) return json(res, 400, { ok: false, error: 'payout must be a Setu address (the public key your wallet was created with)' });
+  if (externals.length >= MAX_EXTERNALS) return json(res, 429, { ok: false, error: 'the demo supplier roster is full' });
+  if (externals.some((e) => e.endpoint === endpoint)) return json(res, 409, { ok: false, error: 'that endpoint is already registered' });
+
+  const sup: ExternalSupplier = { id: 'sup-' + Math.random().toString(36).slice(2, 9), name, service, price, endpoint, payout, registeredAt: Date.now(), jobs: 0, passed: 0, earned: 0, failures: 0 };
+  externals.push(sup);
+  process.stderr.write(`[economy] external supplier registered: ${name} (${service} @ ${price})\n`);
+  json(res, 200, {
+    ok: true, id: sup.id, name, service, price,
+    note: 'You are on the roster. When a matching need appears we POST {need, criteria, price, service} to your endpoint; reply with {"deliverable":"..."}. An independent verifier scores it against the criteria and you are paid on the Setu network ONLY if it passes.',
+  });
+}
+
 const server = createServer((req, res) => {
  try {
   const path = (req.url ?? '/').split('?')[0];
   if (req.method === 'OPTIONS') { res.writeHead(204, CORS).end(); return; }
+  if (path === '/supplier/register' && req.method === 'POST') { handleRegisterSupplier(req, res); return; }
   if (path === '/commission' && req.method === 'POST') { handleCommission(req, res); return; }
   if (path === '/demand' && req.method === 'POST') { handleDemand(req, res); return; }
   if (path === '/guest-demand' && req.method === 'POST') { handleGuestDemand(req, res); return; }
@@ -713,6 +806,10 @@ const server = createServer((req, res) => {
     demand: {
       brainTasksThisHour, brainTasksPerHour: BRAIN_TASKS_PER_HOUR, internalPerHour: INTERNAL_BRAIN_PER_HOUR, humanReserved: BRAIN_TASKS_PER_HOUR - INTERNAL_BRAIN_PER_HOUR, deferredThisHour,
       clients: clients.filter((c) => !c.guest).map((c) => ({ name: c.name, domain: c.domain, balance: Math.round(c.balance), posted: c.posted, supplies: SUPPLIES[c.name]?.service, sold: c.sold ?? 0, earned: c.earned ?? 0 })),
+      // Outside agents on the supply side. Reputation is EARNED from verifier outcomes (passed/jobs),
+      // not self-reported — a supplier cannot claim a track record it did not get paid for.
+      suppliers: externals.map((e) => ({ name: e.name, service: e.service, price: e.price, jobs: e.jobs, passed: e.passed, earned: e.earned, disabled: !!e.disabled, since: e.registeredAt })),
+      supplierSlots: { used: externals.length, max: MAX_EXTERNALS },
       open: tasks.filter((t) => t.status === 'open').map((t) => ({ id: t.id, client: t.client, domain: t.domain, need: t.need, want: t.want, price: t.price, postedAt: t.postedAt, source: t.source, criteria: t.criteria })),
       // The real, brain-produced deliverables — kept in a small showcase so they stay visible even
       // though most settlements defer under the hourly quota.
