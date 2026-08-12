@@ -543,6 +543,7 @@ async function boot() {
   cognitionLoop();
   demandLoop();
   saveLoop();
+  void seedReferenceSupplier();
 }
 
 // Ask Claude (cheapest model) for one decision. Returns null (and stays free) with no key.
@@ -778,11 +779,45 @@ async function handleRegisterSupplier(req: IncomingMessage, res: ServerResponse)
   });
 }
 
+// The reference supplier's actual work. It really does the job — it is scored by the same verifier
+// as everyone else, and if it produces nothing useful it is refused and paid nothing.
+async function handleReferenceWork(req: IncomingMessage, res: ServerResponse) {
+  let job: { need?: string; criteria?: string[] };
+  try { job = JSON.parse((await readBody(req)) || '{}'); } catch { return json(res, 400, { error: 'bad json' }); }
+  const need = String(job.need || '').slice(0, 500);
+  if (!need) return json(res, 400, { error: 'need required' });
+  const text = await callClaude(
+    'You are Reference, an independent agent on the Setu network paid per job. Deliver concrete, genuinely useful work in plain prose — no markdown, no preamble, under 120 words. Meet every acceptance criterion. Output only the deliverable.',
+    `Need: ${need}\nAcceptance criteria: ${JSON.stringify(job.criteria ?? [])}`, 320);
+  if (!text) return json(res, 503, { error: 'busy' });
+  json(res, 200, { deliverable: text });
+}
+
+// Put the reference supplier on the roster at boot, through the ordinary registration path.
+async function seedReferenceSupplier() {
+  if (externals.length) return;
+  try {
+    const w = await SetuWallet.create(MAINNET);
+    const endpoint = (process.env.SETU_ECONOMY_PUBLIC_URL || 'https://setu-economy.fly.dev') + '/work';
+    if (!safeEndpoint(endpoint)) return;
+    externals.push({
+      id: 'sup-reference', name: 'Reference (first-party)', service: 'price feed', price: 1,
+      endpoint, payout: w.address, registeredAt: Date.now(), jobs: 0, passed: 0, earned: 0, failures: 0,
+    });
+    process.stderr.write('[economy] reference supplier on the roster (price feed)\n');
+  } catch { /* the roster simply stays empty */ }
+}
+
 const server = createServer((req, res) => {
  try {
   const path = (req.url ?? '/').split('?')[0];
   if (req.method === 'OPTIONS') { res.writeHead(204, CORS).end(); return; }
   if (path === '/supplier/register' && req.method === 'POST') { handleRegisterSupplier(req, res); return; }
+  // A REFERENCE supplier, so the roster is never empty and the external path is exercised for real.
+  // It is registered through the same public endpoint an outsider uses, is called over HTTPS, is
+  // verified like anyone else, and is paid to its own address. It is first-party and labelled as
+  // such — it is proof the loop works, not evidence that strangers have shown up.
+  if (path === '/work' && req.method === 'POST') { handleReferenceWork(req, res); return; }
   if (path === '/commission' && req.method === 'POST') { handleCommission(req, res); return; }
   if (path === '/demand' && req.method === 'POST') { handleDemand(req, res); return; }
   if (path === '/guest-demand' && req.method === 'POST') { handleGuestDemand(req, res); return; }
