@@ -61,6 +61,20 @@ test('economy service smoke test (offline, no boot)', async () => {
     const g400 = await fetch(base + '/guest-demand', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) });
     assert.equal(g400.status, 400);
 
+    // The receipt is what the platform actually sells, so it must be verifiable by someone who does
+    // not trust this server: Ed25519 over the canonical JSON, checked against the published signer.
+    const rl = await fetch(base + '/receipts');
+    assert.equal(rl.status, 200);
+    const body = await rl.json() as { signer: string | null; feePct: number; receipts: { receipt: unknown; signature: string; signer: string }[] };
+    assert.equal(typeof body.feePct, 'number');
+    const { verify, canonical } = await import('../src/crypto.ts');
+    for (const r of body.receipts) {
+      assert.equal(verify(r.signer, canonical(r.receipt), r.signature), true, 'receipt signature must verify');
+      // and a tampered receipt must NOT verify
+      const tampered = { ...(r.receipt as Record<string, unknown>), value: 999999 };
+      assert.equal(verify(r.signer, canonical(tampered), r.signature), false, 'a tampered receipt must fail');
+    }
+
     // Supplier registration makes US call a stranger's URL, so it must never accept an internal one —
     // otherwise it is an SSRF proxy into our own infrastructure. Also reject non-https and bad fields.
     const reg = (body: unknown) => fetch(base + '/supplier/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });

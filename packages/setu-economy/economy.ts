@@ -8,7 +8,18 @@
 import { createServer, type ServerResponse, type IncomingMessage } from 'node:http';
 import { writeFileSync, renameSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { SetuWallet, MAINNET, verifyCertificate } from '../setu-pay/index.ts';
+import { SetuWallet, MAINNET, verifyCertificate, canonical } from '../setu-pay/index.ts';
+// Ed25519 inline rather than imported from src/: the economy ships as a self-contained package and
+// the image does not include src/ — importing it took the whole service down once. Byte-for-byte the
+// same scheme as src/crypto.ts (spki/pkcs8 DER, base64), so receipts verify with either.
+import { generateKeyPairSync, sign as nodeSign, type KeyObject } from 'node:crypto';
+type KeyPair = { publicKey: string; privateKey: KeyObject };
+function generateKeyPair(): KeyPair {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  return { publicKey: publicKey.export({ type: 'spki', format: 'der' }).toString('base64'), privateKey };
+}
+const sign = (privateKey: KeyObject, message: string): string =>
+  nodeSign(null, Buffer.from(message), privateKey).toString('base64');
 
 const PORT = Number(process.env.PORT ?? 8080);
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -260,6 +271,60 @@ type ExternalSupplier = {
   registeredAt: number; jobs: number; passed: number; earned: number; failures: number; disabled?: boolean;
 };
 const externals: ExternalSupplier[] = [];
+
+// --- The platform's actual business: matching + verification, for a fee ----------------------------
+// SANDBOX. The fee is charged in test Credits and nothing here touches real money. The point is to
+// exercise the model: Setu matches a need to a supplier, checks the work was delivered to spec, takes
+// a percentage, and issues a RECEIPT both sides can verify independently. The parties could settle the
+// underlying value on Setu (as they do here) or entirely between themselves — the receipt is the same
+// either way, and it is the thing the platform is actually paid for.
+const PLATFORM_FEE_PCT = Number(process.env.PLATFORM_FEE_PCT ?? 10);
+let platformKeys: KeyPair | null = null;   // signs receipts, so anyone can verify one offline
+let platformWallet: SetuWallet | null = null; // receives fees on the rail
+const feesDue = new Map<string, number>();    // fractional fees accrue until they cross 1 Credit
+let feesCharged = 0, feesAccrued = 0;
+
+type Receipt = {
+  job: number; buyer: string; supplier: string; need: string; criteria: string[];
+  verdict: { accepted: boolean; score: number; reason: string };
+  value: number; fee: number; at: number; network: string;
+};
+const receipts = new Map<number, { receipt: Receipt; signature: string; signer: string }>();
+
+// A signed statement that a specific job was delivered and independently checked against its criteria.
+// This is what a buyer and seller can each hold and verify, whatever rail the value moved on.
+function issueReceipt(task: Task, buyer: string, supplier: string, fee: number) {
+  if (!platformKeys || !task.verdict) return;
+  const receipt: Receipt = {
+    job: task.id, buyer, supplier, need: task.need, criteria: task.criteria ?? [],
+    verdict: { accepted: !!task.verdict.accepted, score: task.verdict.score, reason: task.verdict.reason },
+    value: task.price, fee, at: Date.now(), network: 'setu-testnet',
+  };
+  receipts.set(task.id, {
+    receipt,
+    signature: sign(platformKeys.privateKey, canonical(receipt)),
+    signer: platformKeys.publicKey,
+  });
+  if (receipts.size > 200) receipts.delete(receipts.keys().next().value as number);
+}
+
+// Charge the platform fee. Accrued fractionally so a 10% fee on a 2-Credit job is not rounded up to
+// 50%; it settles on the rail only once a whole Credit is owed, which is how a metered fee behaves.
+async function chargeFee(client: Client, value: number): Promise<number> {
+  const fee = (value * PLATFORM_FEE_PCT) / 100;
+  feesAccrued += fee;
+  const due = (feesDue.get(client.name) ?? 0) + fee;
+  if (due < 1 || !platformWallet) { feesDue.set(client.name, due); return fee; }
+  try {
+    await client.wallet.pay(platformWallet.address, 1, `fee:${client.name}`);
+    client.balance -= 1; feesCharged += 1;
+    feesDue.set(client.name, due - 1);
+    totalTx += 1; lastTradeAt = Date.now();
+    trades.unshift({ from: client.name, to: 'Setu (fee)', service: 'matching + verification', amount: 1, at: lastTradeAt });
+    if (trades.length > 60) trades.pop();
+  } catch { feesDue.set(client.name, due); } // try again on the next job
+  return fee;
+}
 const MAX_EXTERNALS = Number(process.env.MAX_EXTERNAL_SUPPLIERS ?? 50);
 const EXTERNAL_MAX_FAILURES = 5;       // consecutive failures before we stop calling an endpoint
 const EXTERNAL_EARN_CAP_DAY = Number(process.env.EXTERNAL_EARN_CAP_DAY ?? 200); // per supplier
@@ -422,6 +487,10 @@ async function fulfilOne() {
       client.balance -= task.price; creditSupplier(sup, task.price);
       totalTx += 1; gdp += task.price; lastTradeAt = Date.now();
       trades.unshift({ from: client.name, to: sup.name, service: task.want, amount: task.price, at: lastTradeAt }); if (trades.length > 60) trades.pop();
+      // The work passed. This is the only moment the platform earns: it matched the need, checked the
+      // delivery against the criteria, and can now certify both. Fee first, then the receipt.
+      const fee = await chargeFee(client, task.price);
+      issueReceipt(task, client.name, sup.name, fee);
       task.status = 'fulfilled'; task.mode = verdict.unverified ? 'unverified' : 'ai';
       pushShowcase(task);
       thought(sup.name, verdict.unverified
@@ -544,6 +613,9 @@ async function boot() {
   demandLoop();
   saveLoop();
   void seedReferenceSupplier();
+  // The platform's own identity: one key that signs receipts, one wallet that collects fees.
+  if (!platformKeys) platformKeys = generateKeyPair();
+  if (!platformWallet) { try { platformWallet = await SetuWallet.create(MAINNET); } catch { /* fees accrue, uncollected */ } }
 }
 
 // Ask Claude (cheapest model) for one decision. Returns null (and stays free) with no key.
@@ -818,6 +890,21 @@ const server = createServer((req, res) => {
   // verified like anyone else, and is paid to its own address. It is first-party and labelled as
   // such — it is proof the loop works, not evidence that strangers have shown up.
   if (path === '/work' && req.method === 'POST') { handleReferenceWork(req, res); return; }
+  // A buyer or a seller can fetch the signed proof that a job was delivered and checked. Verify it
+  // offline against `signer` — no need to trust this server, or to have been the one who ran the job.
+  if (path === '/receipt') {
+    const id = Number(new URL(req.url ?? '/', 'http://x').searchParams.get('job'));
+    const r = receipts.get(id);
+    return r ? json(res, 200, r) : json(res, 404, { error: 'no receipt for that job (the demo keeps the last 200)' });
+  }
+  if (path === '/receipts') {
+    return json(res, 200, {
+      signer: platformKeys?.publicKey ?? null,
+      feePct: PLATFORM_FEE_PCT,
+      verify: 'Ed25519 over the canonical JSON of `receipt` (keys sorted); see packages/setu-pay canonical()',
+      receipts: [...receipts.values()].slice(-25).reverse(),
+    });
+  }
   if (path === '/commission' && req.method === 'POST') { handleCommission(req, res); return; }
   if (path === '/demand' && req.method === 'POST') { handleDemand(req, res); return; }
   if (path === '/guest-demand' && req.method === 'POST') { handleGuestDemand(req, res); return; }
@@ -845,6 +932,9 @@ const server = createServer((req, res) => {
       // not self-reported — a supplier cannot claim a track record it did not get paid for.
       suppliers: externals.map((e) => ({ name: e.name, service: e.service, price: e.price, jobs: e.jobs, passed: e.passed, earned: e.earned, disabled: !!e.disabled, since: e.registeredAt })),
       supplierSlots: { used: externals.length, max: MAX_EXTERNALS },
+      // The platform's own economics, in test Credits. `accrued` is what a fee at this rate would
+      // have earned; `charged` is what has actually settled on the rail (whole Credits only).
+      platform: { feePct: PLATFORM_FEE_PCT, feesAccrued: Math.round(feesAccrued * 100) / 100, feesCharged, receipts: receipts.size, signer: platformKeys?.publicKey ?? null },
       open: tasks.filter((t) => t.status === 'open').map((t) => ({ id: t.id, client: t.client, domain: t.domain, need: t.need, want: t.want, price: t.price, postedAt: t.postedAt, source: t.source, criteria: t.criteria })),
       // The real, brain-produced deliverables — kept in a small showcase so they stay visible even
       // though most settlements defer under the hourly quota.
