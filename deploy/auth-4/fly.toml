@@ -6,7 +6,7 @@ primary_region = "sin"
 
 [env]
   SETU_AUTHORITY = "auth-4"
-  SETU_STATE_DIR = "/data"
+  SETU_STATE_DIR = "/data/v2"
 
 [mounts]
   source = "setu_data"
