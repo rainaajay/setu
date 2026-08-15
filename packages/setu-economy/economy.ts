@@ -582,7 +582,9 @@ async function loadState(): Promise<boolean> {
       // Preserve `guest`: without it, a visitor's throwaway wallet is promoted to a portfolio app on
       // the next restart and gets published as one. Restored guests are dropped rather than kept —
       // they are single-session by design.
-      if (c.guest) continue;
+      // The name check covers snapshots written before `guest` was persisted — those entries would
+      // otherwise stay in the app list forever.
+      if (c.guest || c.name === 'a newcomer') continue;
       clients.push({ name: c.name, domain: c.domain, needs: c.needs, wallet, address: wallet.address, balance: c.balance, posted: c.posted });
     }
     totalTx = s.totalTx || 0; gdp = s.gdp || 0; lastTradeAt = s.lastTradeAt || 0;
