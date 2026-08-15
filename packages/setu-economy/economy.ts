@@ -291,6 +291,20 @@ type Receipt = {
 };
 const receipts = new Map<number, { receipt: Receipt; signature: string; signer: string }>();
 
+// --- Dispatches: the network's own voice ----------------------------------------------------------
+// Setu publishes what actually happened, on its own surfaces, with no human approving each line.
+// Every dispatch is generated DETERMINISTICALLY from a real event — no model writes these, so there
+// is nothing to hallucinate and nothing to cost. If an event did not happen, no dispatch exists.
+// Failures are published on the same feed as successes; a market that hides its faults is not one
+// anybody should trust.
+type Dispatch = { at: number; kind: string; text: string };
+const dispatches: Dispatch[] = [];
+function dispatch(kind: string, text: string) {
+  dispatches.unshift({ at: Date.now(), kind, text });
+  if (dispatches.length > 200) dispatches.pop();
+}
+const esc = (s: string) => String(s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+
 // A signed statement that a specific job was delivered and independently checked against its criteria.
 // This is what a buyer and seller can each hold and verify, whatever rail the value moved on.
 function issueReceipt(task: Task, buyer: string, supplier: string, fee: number) {
@@ -474,7 +488,11 @@ async function fulfilOne() {
       // Their endpoint failed or returned nothing usable. Count it; stop calling a persistently
       // broken endpoint so one bad registration cannot stall the market.
       sup.ref.failures += 1;
-      if (sup.ref.failures >= EXTERNAL_MAX_FAILURES) { sup.ref.disabled = true; process.stderr.write(`[economy] disabled external supplier ${sup.ref.name} after ${sup.ref.failures} failures\n`); }
+      if (sup.ref.failures >= EXTERNAL_MAX_FAILURES) {
+        sup.ref.disabled = true;
+        dispatch('supplier.removed', `${sup.ref.name} was taken off the roster after ${sup.ref.failures} consecutive failures to deliver. It can re-register when its endpoint works.`);
+        process.stderr.write(`[economy] disabled external supplier ${sup.ref.name} after ${sup.ref.failures} failures\n`);
+      }
     }
     if (!deliverable) { task.attempts = (task.attempts ?? 0) + 1; if (task.attempts >= 5) { task.status = 'settled'; task.mode = 'failed'; task.deliverable = `${sup.name} could not produce output.`; } continue; }
     const verdict = await verifyDelivery(task.need, task.criteria, deliverable);
@@ -491,6 +509,7 @@ async function fulfilOne() {
       // delivery against the criteria, and can now certify both. Fee first, then the receipt.
       const fee = await chargeFee(client, task.price);
       issueReceipt(task, client.name, sup.name, fee);
+      dispatch('job.verified', `${client.name} commissioned "${task.need.slice(0, 90)}${task.need.length > 90 ? '…' : ''}". ${sup.name} delivered it${sup.kind === 'external' ? ' (an outside agent)' : ''}. Verified ${verdict.score}/100 — ${task.price} Cr settled, receipt #${task.id}.`);
       task.status = 'fulfilled'; task.mode = verdict.unverified ? 'unverified' : 'ai';
       pushShowcase(task);
       thought(sup.name, verdict.unverified
@@ -498,6 +517,8 @@ async function fulfilOne() {
         : `PASSED verification ${verdict.score}/100 for ${client.name}: "${task.need.slice(0, 42)}…"`);
     } else {
       // Rejected by the verifier — NO payment settles. The requester keeps its funds; the record shows why.
+      // Publish the rejection too — an unpaid failure is as much a fact about this market as a sale.
+      dispatch('job.rejected', `${sup.name} delivered for ${client.name} and the verifier refused it (${verdict.score}/100: ${verdict.reason}). No payment was made.`);
       task.status = 'settled'; task.mode = 'rejected';
       pushShowcase(task);
       thought(sup.name, `verification REJECTED ${verdict.score}/100 for ${client.name} — no payment`);
@@ -844,6 +865,7 @@ async function handleRegisterSupplier(req: IncomingMessage, res: ServerResponse)
 
   const sup: ExternalSupplier = { id: 'sup-' + Math.random().toString(36).slice(2, 9), name, service, price, endpoint, payout, registeredAt: Date.now(), jobs: 0, passed: 0, earned: 0, failures: 0 };
   externals.push(sup);
+  dispatch('supplier.joined', `A new agent joined the supply side: ${name}, offering ${service} at ${price} Cr. It earns only when its work passes verification.`);
   process.stderr.write(`[economy] external supplier registered: ${name} (${service} @ ${price})\n`);
   json(res, 200, {
     ok: true, id: sup.id, name, service, price,
@@ -896,6 +918,29 @@ const server = createServer((req, res) => {
     const id = Number(new URL(req.url ?? '/', 'http://x').searchParams.get('job'));
     const r = receipts.get(id);
     return r ? json(res, 200, r) : json(res, 404, { error: 'no receipt for that job (the demo keeps the last 200)' });
+  }
+  // The network's public activity, written by the network itself. JSON for agents, RSS for people.
+  if (path === '/feed.json') {
+    return json(res, 200, {
+      title: 'Setu — live activity',
+      description: 'What actually happened on the Setu network. Generated from real events; failures included.',
+      home_page_url: 'https://setu-mocha.vercel.app/',
+      feed_url: 'https://setu-economy.fly.dev/feed.json',
+      items: dispatches.slice(0, 50).map((d) => ({
+        id: String(d.at), date_published: new Date(d.at).toISOString(), tags: [d.kind], content_text: d.text,
+      })),
+    });
+  }
+  if (path === '/feed.xml') {
+    const items = dispatches.slice(0, 50).map((d) =>
+      `<item><title>${esc(d.kind)}</title><description>${esc(d.text)}</description>` +
+      `<pubDate>${new Date(d.at).toUTCString()}</pubDate><guid isPermaLink="false">${d.at}</guid></item>`).join('');
+    res.writeHead(200, { 'content-type': 'application/rss+xml; charset=utf-8', ...CORS });
+    return res.end(
+      `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>` +
+      `<title>Setu — live activity</title><link>https://setu-mocha.vercel.app/</link>` +
+      `<description>What actually happened on the Setu network. Generated from real events; failures included.</description>` +
+      `${items}</channel></rss>`);
   }
   if (path === '/receipts') {
     return json(res, 200, {
