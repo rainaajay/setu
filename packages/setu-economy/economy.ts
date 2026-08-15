@@ -180,6 +180,9 @@ const CLIENTS = [
     'Write a short practice note for a raga a learner is starting.' ] },
   { name: 'MinerArb', domain: 'miner-vs-MSTR pair-trade tool', needs: [
     'Produce a pair-trade signal: a gold miner vs MSTR, with the reason.' ] },
+  { name: 'Clarion', domain: 'regulatory data estate', needs: [
+    'Write a plain-language note on why a reporting cell needs a designated owner.',
+    'Flag the biggest risk in scoping a regulatory report from an unverified data source.' ] },
 ];
 type Client = { name: string; domain: string; needs: string[]; wallet: SetuWallet; address: string; balance: number; posted: number; guest?: boolean; payFails?: number; sold?: number; earned?: number };
 type Verdict = { score: number; accepted: boolean; reason: string; scores?: number[]; unverified?: boolean };
@@ -258,6 +261,7 @@ const SUPPLIES: Record<string, { service: string; expertise: string }> = {
   TwinCAB: { service: 'risk alert', expertise: 'bank value reconciliation' },
   Sangita: { service: 'written report', expertise: 'music practice guidance' },
   MinerArb: { service: 'trade signals', expertise: 'miner-vs-MSTR pair signals' },
+  Clarion: { service: 'risk alert', expertise: 'regulatory data quality and lineage' },
 };
 
 // --- The open supply side ------------------------------------------------------------------------
@@ -547,7 +551,7 @@ async function snapshot(): Promise<string> {
     rateDay, globalDayCount, ipDay: [...ipDayCount.entries()],
     brainHour, brainTasksThisHour, internalTasksThisHour, cogThisHour, deferredThisHour,
     agents: await Promise.all(agents.map(async (a) => ({ name: a.name, service: a.service, desc: a.desc, price: a.price, color: a.color, wallet: await a.wallet.export(), balance: a.balance, sold: a.sold, bought: a.bought, revenue: a.revenue }))),
-    clients: await Promise.all(clients.map(async (c) => ({ name: c.name, domain: c.domain, needs: c.needs, wallet: await c.wallet.export(), balance: c.balance, posted: c.posted }))),
+    clients: await Promise.all(clients.map(async (c) => ({ name: c.name, domain: c.domain, needs: c.needs, wallet: await c.wallet.export(), balance: c.balance, posted: c.posted, guest: !!c.guest }))),
     tasks, showcase, thoughts, trades,
   });
 }
@@ -575,6 +579,10 @@ async function loadState(): Promise<boolean> {
     }
     for (const c of (s.clients || [])) {
       const wallet = await SetuWallet.load(c.wallet, MAINNET);
+      // Preserve `guest`: without it, a visitor's throwaway wallet is promoted to a portfolio app on
+      // the next restart and gets published as one. Restored guests are dropped rather than kept —
+      // they are single-session by design.
+      if (c.guest) continue;
       clients.push({ name: c.name, domain: c.domain, needs: c.needs, wallet, address: wallet.address, balance: c.balance, posted: c.posted });
     }
     totalTx = s.totalTx || 0; gdp = s.gdp || 0; lastTradeAt = s.lastTradeAt || 0;
